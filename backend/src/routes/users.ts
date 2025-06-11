@@ -1,5 +1,6 @@
 import { Router, Response, NextFunction } from 'express';
 import { body, query, validationResult } from 'express-validator';
+import bcrypt from 'bcryptjs';
 import { PrismaClient } from '@prisma/client';
 import { createError } from '../middleware/errorHandler';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
@@ -9,6 +10,62 @@ const prisma = new PrismaClient();
 
 // Apply authentication to all routes
 router.use(authenticate);
+
+// Create new user (Admin only)
+router.post('/', authorize('ADMIN'), [
+  body('email').isEmail().normalizeEmail(),
+  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+  body('firstName').notEmpty().trim(),
+  body('lastName').notEmpty().trim(),
+  body('role').isIn(['ADMIN', 'MANAGER', 'INSPECTOR', 'USER']),
+], async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, errors: errors.array() });
+    }
+
+    const { email, password, firstName, lastName, role } = req.body;
+
+    // Check if user already exists
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      throw createError('User already exists with this email', 400);
+    }
+
+    // Hash password
+    const saltRounds = 12;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+    // Create user (admin can set any role)
+    const user = await prisma.user.create({
+      data: {
+        email,
+        password: hashedPassword,
+        firstName,
+        lastName,
+        role,
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        active: true,
+        createdAt: true,
+      },
+    });
+
+    res.status(201).json({
+      success: true,
+      data: { user },
+      message: 'User created successfully',
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 // Get all users (Admin/Manager only)
 router.get('/', authorize('ADMIN', 'MANAGER'), [

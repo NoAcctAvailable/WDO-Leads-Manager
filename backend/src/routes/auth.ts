@@ -30,7 +30,11 @@ router.post('/register', registerValidation, async (req: Request, res: Response,
       return res.status(400).json({ success: false, errors: errors.array() });
     }
 
-    const { email, password, firstName, lastName, role = 'USER' } = req.body;
+    const { email, password, firstName, lastName } = req.body;
+
+    // SECURITY: Never allow role to be set via public registration
+    // Only regular users can be created through public registration
+    const role = 'USER';
 
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({ where: { email } });
@@ -42,14 +46,14 @@ router.post('/register', registerValidation, async (req: Request, res: Response,
     const saltRounds = 12;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-    // Create user
+    // Create user (always as USER role for security)
     const user = await prisma.user.create({
       data: {
         email,
         password: hashedPassword,
         firstName,
         lastName,
-        role,
+        role: 'USER', // Hardcoded for security
       },
       select: {
         id: true,
