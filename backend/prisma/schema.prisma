@@ -1,0 +1,213 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  role      Role     @default(USER)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  createdLeads     Lead[]       @relation("CreatedBy")
+  assignedLeads    Lead[]       @relation("AssignedTo")
+  createdProperties Property[] @relation("CreatedBy")
+  inspections      Inspection[]
+  calls            Call[]       @relation("CallMadeBy")
+
+  @@map("users")
+}
+
+model Property {
+  id          String   @id @default(cuid())
+  address     String
+  city        String
+  state       String
+  zipCode     String
+  propertyType PropertyType @default(RESIDENTIAL)
+  description String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String
+  
+  // Relations
+  createdBy   User         @relation("CreatedBy", fields: [createdById], references: [id])
+  leads       Lead[]
+  inspections Inspection[]
+  calls       Call[]
+
+  @@map("properties")
+}
+
+model Lead {
+  id              String     @id @default(cuid())
+  propertyId      String
+  contactName     String
+  contactEmail    String?
+  contactPhone    String?
+  status          LeadStatus @default(NEW)
+  priority        Priority   @default(MEDIUM)
+  source          String?
+  notes           String?
+  followUpDate    DateTime?
+  estimatedValue  Float?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  createdById     String
+  assignedToId    String?
+
+  // Relations
+  property    Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  createdBy   User         @relation("CreatedBy", fields: [createdById], references: [id])
+  assignedTo  User?        @relation("AssignedTo", fields: [assignedToId], references: [id])
+  inspections Inspection[]
+  calls       Call[]
+
+  @@map("leads")
+}
+
+model Inspection {
+  id                String           @id @default(cuid())
+  leadId            String?
+  propertyId        String
+  inspectorId       String
+  scheduledDate     DateTime
+  completedDate     DateTime?
+  status            InspectionStatus @default(SCHEDULED)
+  inspectionType    InspectionType   @default(WDO)
+  findings          String?
+  recommendations   String?
+  cost              Float?
+  reportPath        String?
+  photos            String[]         @default([])
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  // Relations
+  lead      Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  property  Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  inspector User     @relation(fields: [inspectorId], references: [id])
+  calls     Call[]
+
+  @@map("inspections")
+}
+
+model Call {
+  id            String     @id @default(cuid())
+  propertyId    String
+  inspectionId  String?
+  leadId        String?
+  madeById      String
+  callType      CallType   @default(OUTBOUND)
+  purpose       CallPurpose @default(FOLLOW_UP)
+  contactName   String
+  contactPhone  String?
+  duration      Int?       // Duration in minutes
+  notes         String?
+  outcome       CallOutcome @default(NO_ANSWER)
+  followUpDate  DateTime?
+  reminderDate  DateTime?
+  completed     Boolean    @default(true)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  // Relations
+  property     Property    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  inspection   Inspection? @relation(fields: [inspectionId], references: [id], onDelete: SetNull)
+  lead         Lead?       @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  madeBy       User        @relation("CallMadeBy", fields: [madeById], references: [id])
+
+  @@map("calls")
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  INSPECTOR
+  USER
+}
+
+enum PropertyType {
+  RESIDENTIAL
+  COMMERCIAL
+  INDUSTRIAL
+  MIXED_USE
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  LOST
+  CANCELLED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum InspectionStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  RESCHEDULED
+}
+
+enum InspectionType {
+  WDO
+  TERMITE
+  PEST
+  MOISTURE
+  STRUCTURAL
+  PREVENTIVE
+}
+
+enum CallType {
+  INBOUND
+  OUTBOUND
+}
+
+enum CallPurpose {
+  INITIAL_CONTACT
+  FOLLOW_UP
+  SCHEDULING
+  CONFIRMATION
+  RESCHEDULING
+  REPORT_DELIVERY
+  PAYMENT
+  COMPLAINT
+  GENERAL_INQUIRY
+  REMINDER
+}
+
+enum CallOutcome {
+  ANSWERED
+  NO_ANSWER
+  VOICEMAIL
+  BUSY
+  WRONG_NUMBER
+  SCHEDULED
+  COMPLETED
+  DECLINED
+  CALLBACK_REQUESTED
+} 
