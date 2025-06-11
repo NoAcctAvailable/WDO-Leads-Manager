@@ -22,64 +22,16 @@ const loginValidation = [
   body('password').notEmpty(),
 ];
 
-// Register new user
-router.post('/register', registerValidation, async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ success: false, errors: errors.array() });
+// Public registration disabled - Admin-only user creation
+router.post('/register', (req: Request, res: Response) => {
+  res.status(403).json({
+    success: false,
+    error: {
+      message: 'Public registration is disabled',
+      details: 'New user accounts can only be created by system administrators. Please contact your administrator to request an account.',
+      code: 'REGISTRATION_DISABLED'
     }
-
-    const { email, password, firstName, lastName } = req.body;
-
-    // SECURITY: Never allow role to be set via public registration
-    // Only regular users can be created through public registration
-    const role = 'USER';
-
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({ where: { email } });
-    if (existingUser) {
-      throw createError('User already exists with this email', 400);
-    }
-
-    // Hash password
-    const saltRounds = 12;
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
-
-    // Create user (always as USER role for security)
-    const user = await prisma.user.create({
-      data: {
-        email,
-        password: hashedPassword,
-        firstName,
-        lastName,
-        role: 'USER', // Hardcoded for security
-      },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        role: true,
-        createdAt: true,
-      },
-    });
-
-    // Generate JWT token
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
-      process.env.JWT_SECRET!,
-      { expiresIn: '24h' }
-    );
-
-    res.status(201).json({
-      success: true,
-      data: { user, token },
-      message: 'User registered successfully',
-    });
-  } catch (error) {
-    next(error);
-  }
+  });
 });
 
 // Login user

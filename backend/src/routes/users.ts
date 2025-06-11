@@ -14,10 +14,11 @@ router.use(authenticate);
 // Create new user (Admin only)
 router.post('/', authorize('ADMIN'), [
   body('email').isEmail().normalizeEmail(),
-  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+  body('password').optional().isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
   body('firstName').notEmpty().trim(),
   body('lastName').notEmpty().trim(),
   body('role').isIn(['ADMIN', 'MANAGER', 'INSPECTOR', 'USER']),
+  body('generatePassword').optional().isBoolean(),
 ], async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const errors = validationResult(req);
@@ -25,7 +26,7 @@ router.post('/', authorize('ADMIN'), [
       return res.status(400).json({ success: false, errors: errors.array() });
     }
 
-    const { email, password, firstName, lastName, role } = req.body;
+    const { email, password, firstName, lastName, role, generatePassword = false } = req.body;
 
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({ where: { email } });
@@ -33,9 +34,20 @@ router.post('/', authorize('ADMIN'), [
       throw createError('User already exists with this email', 400);
     }
 
+    // Generate temporary password if requested, otherwise use provided password
+    let finalPassword = password;
+    let isTemporaryPassword = false;
+    
+    if (generatePassword || !password) {
+      // Generate secure temporary password
+      const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%^&*';
+      finalPassword = Array.from({length: 12}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+      isTemporaryPassword = true;
+    }
+
     // Hash password
     const saltRounds = 12;
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
+    const hashedPassword = await bcrypt.hash(finalPassword, saltRounds);
 
     // Create user (admin can set any role)
     const user = await prisma.user.create({
@@ -57,10 +69,19 @@ router.post('/', authorize('ADMIN'), [
       },
     });
 
+    const responseData: any = { user };
+    
+    // Include temporary password in response for admin to share with user
+    if (isTemporaryPassword) {
+      responseData.temporaryPassword = finalPassword;
+      responseData.message = `User created successfully. Temporary password: ${finalPassword}`;
+      responseData.instructions = 'Please securely share this temporary password with the user. They will be required to change it on first login.';
+    }
+
     res.status(201).json({
       success: true,
-      data: { user },
-      message: 'User created successfully',
+      data: responseData,
+      message: isTemporaryPassword ? 'User created with temporary password' : 'User created successfully',
     });
   } catch (error) {
     next(error);
