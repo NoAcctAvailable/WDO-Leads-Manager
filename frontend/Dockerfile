@@ -12,6 +12,9 @@ RUN npm install && npm cache clean --force
 # Copy source code
 COPY . .
 
+# Set Node.js heap size to prevent memory issues during build
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+
 # Build application
 RUN npm run build
 
