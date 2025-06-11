@@ -112,7 +112,17 @@ A comprehensive web application for managing Wood Destroying Organism (WDO) insp
    docker-compose exec backend npx prisma db push
    ```
 
-5. **Create an admin user** (optional)
+5. **Access the application**
+   
+   **Automatic Temporary Admin Account**: When you start the application for the first time, a temporary admin account is automatically created:
+   
+   - **Email**: `admin@temp.local`
+   - **Password**: `WDOAdmin123!`
+   - **Note**: You will be required to change this password on first login for security
+   
+   Use these credentials to log in and create additional user accounts through the admin interface.
+
+6. **Create additional users** (optional)
    ```bash
    docker-compose exec backend npx prisma db seed
    ```
