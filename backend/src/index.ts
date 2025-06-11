@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
+import bcrypt from 'bcryptjs';
 import { PrismaClient } from '@prisma/client';
 
 // Import routes
@@ -79,11 +80,51 @@ app.use('*', (req, res) => {
 
 const PORT = process.env.PORT || 3001;
 
+// Initialize temporary admin account if no admin exists
+async function initializeTempAdmin() {
+  try {
+    const existingAdmin = await prisma.user.findFirst({
+      where: { role: 'ADMIN' }
+    });
+    
+    if (existingAdmin) {
+      console.log('✅ Admin user already exists');
+      return;
+    }
+    
+    const tempPassword = 'WDOAdmin123!';
+    const hashedPassword = await bcrypt.hash(tempPassword, 10);
+    
+    const tempAdmin = await prisma.user.create({
+      data: {
+        email: 'admin@temp.local',
+        password: hashedPassword,
+        firstName: 'Temporary',
+        lastName: 'Administrator',
+        role: 'ADMIN',
+        active: true,
+        isFirstLogin: true
+      }
+    });
+    
+    console.log('🔑 Temporary admin account created:');
+    console.log('   📧 Email: admin@temp.local');
+    console.log('   🔒 Password: WDOAdmin123!');
+    console.log('   ⚠️  IMPORTANT: Change this password immediately after first login!');
+    console.log('');
+  } catch (error) {
+    console.error('❌ Error creating temporary admin:', error);
+  }
+}
+
 async function startServer() {
   try {
     // Test database connection
     await prisma.$connect();
     console.log('✅ Database connected successfully');
+
+    // Initialize temporary admin account
+    await initializeTempAdmin();
 
     app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);

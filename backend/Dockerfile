@@ -16,6 +16,9 @@ RUN npm install && npm cache clean --force
 # Copy source code
 COPY . .
 
+# Ensure seed files are present
+COPY prisma/seed.js ./prisma/
+
 # Generate Prisma client for correct platform
 ENV PRISMA_CLI_BINARY_TARGETS=linux-musl-openssl-3.0.x
 RUN npx prisma generate

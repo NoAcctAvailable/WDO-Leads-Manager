@@ -156,6 +156,83 @@ router.get('/profile', authenticate, async (req: AuthRequest, res: Response, nex
   }
 });
 
+// Change password (for first login or password reset)
+router.put('/change-password', authenticate, [
+  body('currentPassword').notEmpty().withMessage('Current password is required'),
+  body('newPassword').isLength({ min: 6 }).withMessage('New password must be at least 6 characters'),
+  body('firstName').optional().notEmpty().trim(),
+  body('lastName').optional().notEmpty().trim(),
+  body('email').optional().isEmail().normalizeEmail(),
+], async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, errors: errors.array() });
+    }
+
+    const { currentPassword, newPassword, firstName, lastName, email } = req.body;
+
+    // Get current user
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+    });
+
+    if (!user) {
+      throw createError('User not found', 404);
+    }
+
+    // Verify current password
+    const isValidPassword = await bcrypt.compare(currentPassword, user.password);
+    if (!isValidPassword) {
+      throw createError('Current password is incorrect', 400);
+    }
+
+    // Hash new password
+    const saltRounds = 12;
+    const hashedNewPassword = await bcrypt.hash(newPassword, saltRounds);
+
+    // Prepare update data
+    const updateData: any = {
+      password: hashedNewPassword,
+      isFirstLogin: false, // Mark first login as complete
+    };
+
+    if (firstName) updateData.firstName = firstName;
+    if (lastName) updateData.lastName = lastName;
+    if (email) {
+      // Check if email is already taken by another user
+      const existingUser = await prisma.user.findFirst({
+        where: { email, NOT: { id: req.user!.id } },
+      });
+      if (existingUser) {
+        throw createError('Email already in use', 400);
+      }
+      updateData.email = email;
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: req.user!.id },
+      data: updateData,
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        updatedAt: true,
+      },
+    });
+
+    res.json({
+      success: true,
+      data: { user: updatedUser },
+      message: 'Password changed successfully',
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Update user profile
 router.put('/profile', authenticate, [
   body('firstName').optional().notEmpty().trim(),

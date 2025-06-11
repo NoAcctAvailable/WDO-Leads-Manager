@@ -18,6 +18,7 @@ model User {
   lastName  String
   role      Role     @default(USER)
   active    Boolean  @default(true)
+  isFirstLogin Boolean @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
