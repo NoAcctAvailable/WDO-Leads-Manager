@@ -167,4 +167,67 @@ router.post('/', createLeadValidation, async (req: any, res: Response, next: Nex
   }
 });
 
+// Get lead statistics
+router.get('/stats/overview', authorize('ADMIN', 'MANAGER'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const [
+      totalLeads,
+      leadsByStatus,
+      leadsByPriority,
+      leadsWithInspections,
+      recentLeads,
+      totalEstimatedValue,
+    ] = await Promise.all([
+      prisma.lead.count(),
+      prisma.lead.groupBy({
+        by: ['status'],
+        _count: { status: true },
+      }),
+      prisma.lead.groupBy({
+        by: ['priority'],
+        _count: { priority: true },
+      }),
+      prisma.lead.count({
+        where: {
+          inspections: {
+            some: {},
+          },
+        },
+      }),
+      prisma.lead.findMany({
+        take: 5,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          property: {
+            select: { address: true, city: true },
+          },
+          assignedTo: {
+            select: { firstName: true, lastName: true },
+          },
+        },
+      }),
+      prisma.lead.aggregate({
+        _sum: { estimatedValue: true },
+        where: { estimatedValue: { not: null } },
+      }),
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        overview: {
+          totalLeads,
+          leadsWithInspections,
+          totalEstimatedValue: totalEstimatedValue._sum.estimatedValue || 0,
+        },
+        statusDistribution: leadsByStatus,
+        priorityDistribution: leadsByPriority,
+        recentLeads,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router; 

@@ -47,9 +47,13 @@ COPY --from=builder --chown=nextjs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nextjs:nodejs /app/package*.json ./
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
+COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
 
 # Create uploads directory
 RUN mkdir -p uploads && chown nextjs:nodejs uploads
+
+# Make startup script executable
+RUN chmod +x scripts/start.sh
 
 USER nextjs
 
@@ -59,4 +63,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 
 EXPOSE 3001
 
-CMD ["npm", "start"] 
+CMD ["./scripts/start.sh"] 

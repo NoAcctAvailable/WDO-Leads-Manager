@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import {
   Box,
   Grid,
@@ -7,6 +7,8 @@ import {
   Typography,
   Paper,
   LinearProgress,
+  Alert,
+  CircularProgress,
 } from '@mui/material'
 import {
   People,
@@ -14,14 +16,104 @@ import {
   Assignment,
   CheckCircle,
 } from '@mui/icons-material'
+import { useAuth } from '../contexts/AuthContext'
+import api from '../services/api'
+
+interface DashboardStats {
+  totalLeads: number
+  totalProperties: number
+  totalInspections: number
+  completedInspections: number
+}
+
+interface RecentActivity {
+  text: string
+  id: string
+}
 
 const Dashboard: React.FC = () => {
-  // Mock data - replace with actual API calls
-  const stats = {
-    totalLeads: 156,
-    totalProperties: 89,
-    totalInspections: 234,
-    completedInspections: 198,
+  const { user } = useAuth()
+  const [stats, setStats] = useState<DashboardStats>({
+    totalLeads: 0,
+    totalProperties: 0,
+    totalInspections: 0,
+    completedInspections: 0,
+  })
+  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetchDashboardData()
+  }, [])
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      // Only fetch stats if user has permission (ADMIN or MANAGER)
+      if (user?.role === 'ADMIN' || user?.role === 'MANAGER') {
+        const [propertiesResponse, inspectionsResponse, leadsResponse] = await Promise.all([
+          api.get('/properties/stats/overview'),
+          api.get('/inspections/stats/overview'),
+          api.get('/leads/stats/overview'),
+        ])
+
+        const propertyStats = propertiesResponse.data.data.overview
+        const inspectionStats = inspectionsResponse.data.data.overview
+        const leadStats = leadsResponse.data.data.overview
+
+        setStats({
+          totalLeads: leadStats.totalLeads || 0,
+          totalProperties: propertyStats.totalProperties || 0,
+          totalInspections: inspectionStats.totalInspections || 0,
+          completedInspections: inspectionStats.completedInspections || 0,
+        })
+
+        // Build recent activity from the recent data
+        const activities: RecentActivity[] = []
+        
+        // Add recent leads
+        if (leadsResponse.data.data.recentLeads?.length > 0) {
+          leadsResponse.data.data.recentLeads.slice(0, 2).forEach((lead: any, index: number) => {
+            activities.push({
+              id: `lead-${index}`,
+              text: `New lead added: ${lead.contactName} for ${lead.property?.address || 'Property'}`
+            })
+          })
+        }
+
+        // Add recent inspections
+        if (inspectionsResponse.data.data.upcomingInspections?.length > 0) {
+          inspectionsResponse.data.data.upcomingInspections.slice(0, 1).forEach((inspection: any, index: number) => {
+            activities.push({
+              id: `inspection-${index}`,
+              text: `Upcoming inspection at ${inspection.property?.address || 'Property'}`
+            })
+          })
+        }
+
+        setRecentActivity(activities)
+      } else {
+        // For non-admin users, show limited stats or redirect to their specific view
+        setStats({
+          totalLeads: 0,
+          totalProperties: 0,
+          totalInspections: 0,
+          completedInspections: 0,
+        })
+        setRecentActivity([
+          { id: '1', text: 'Welcome to the WDO Leads Manager' },
+          { id: '2', text: 'Check your assigned leads and inspections' },
+        ])
+      }
+    } catch (error: any) {
+      console.error('Failed to fetch dashboard data:', error)
+      setError('Failed to load dashboard data. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const StatCard = ({ title, value, icon, color }: any) => (
@@ -33,7 +125,7 @@ const Dashboard: React.FC = () => {
               {title}
             </Typography>
             <Typography variant="h4" component="h2">
-              {value}
+              {loading ? <CircularProgress size={24} /> : value}
             </Typography>
           </Box>
           <Box color={color}>
@@ -44,11 +136,31 @@ const Dashboard: React.FC = () => {
     </Card>
   )
 
+  if (loading && stats.totalLeads === 0) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+        <CircularProgress />
+      </Box>
+    )
+  }
+
   return (
     <Box>
       <Typography variant="h4" component="h1" gutterBottom>
         Dashboard
       </Typography>
+
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
+
+      {user?.role !== 'ADMIN' && user?.role !== 'MANAGER' && (
+        <Alert severity="info" sx={{ mb: 3 }}>
+          Limited dashboard view. Contact your administrator for full statistics access.
+        </Alert>
+      )}
       
       <Grid container spacing={3}>
         {/* Overview Cards */}
@@ -96,11 +208,11 @@ const Dashboard: React.FC = () => {
             </Typography>
             <Box mt={2}>
               <Typography variant="body2" color="textSecondary">
-                Completion Rate: {Math.round((stats.completedInspections / stats.totalInspections) * 100)}%
+                Completion Rate: {stats.totalInspections > 0 ? Math.round((stats.completedInspections / stats.totalInspections) * 100) : 0}%
               </Typography>
               <LinearProgress
                 variant="determinate"
-                value={(stats.completedInspections / stats.totalInspections) * 100}
+                value={stats.totalInspections > 0 ? (stats.completedInspections / stats.totalInspections) * 100 : 0}
                 sx={{ mt: 1, height: 8, borderRadius: 4 }}
               />
             </Box>
@@ -113,15 +225,17 @@ const Dashboard: React.FC = () => {
             <Typography variant="h6" gutterBottom>
               Recent Activity
             </Typography>
-            <Typography variant="body2" color="textSecondary">
-              • New lead added for 123 Main St
-            </Typography>
-            <Typography variant="body2" color="textSecondary">
-              • Inspection completed at 456 Oak Ave
-            </Typography>
-            <Typography variant="body2" color="textSecondary">
-              • Property registered: 789 Pine Rd
-            </Typography>
+            {recentActivity.length > 0 ? (
+              recentActivity.map((activity) => (
+                <Typography key={activity.id} variant="body2" color="textSecondary" sx={{ mb: 1 }}>
+                  • {activity.text}
+                </Typography>
+              ))
+            ) : (
+              <Typography variant="body2" color="textSecondary">
+                No recent activity to display
+              </Typography>
+            )}
           </Paper>
         </Grid>
       </Grid>

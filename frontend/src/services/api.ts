@@ -80,6 +80,9 @@ export const authApi = {
   changePassword: (data: {
     currentPassword: string
     newPassword: string
+    firstName?: string
+    lastName?: string
+    email?: string
   }): Promise<AxiosResponse<ApiResponse>> =>
     api.put('/auth/change-password', data),
 }

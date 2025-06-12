@@ -45,7 +45,21 @@ router.post('/login', loginValidation, async (req: Request, res: Response, next:
     const { email, password } = req.body;
 
     // Find user
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findUnique({ 
+      where: { email },
+      select: {
+        id: true,
+        email: true,
+        password: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        active: true,
+        isFirstLogin: true,
+        createdAt: true,
+        updatedAt: true,
+      }
+    });
     if (!user || !user.active) {
       throw createError('Invalid credentials', 401);
     }
@@ -72,6 +86,7 @@ router.post('/login', loginValidation, async (req: Request, res: Response, next:
           firstName: user.firstName,
           lastName: user.lastName,
           role: user.role,
+          isFirstLogin: user.isFirstLogin,
         },
         token,
       },
