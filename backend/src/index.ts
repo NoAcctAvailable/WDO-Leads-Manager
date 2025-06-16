@@ -10,12 +10,13 @@ import { PrismaClient } from '@prisma/client';
 import authRoutes from './routes/auth';
 import userRoutes from './routes/users';
 import propertyRoutes from './routes/properties';
-import leadRoutes from './routes/leads';
 import inspectionRoutes from './routes/inspections';
 import callRoutes from './routes/calls';
+import contactRoutes from './routes/contacts';
 
 // Import middleware
 import { errorHandler } from './middleware/errorHandler';
+import { authenticate } from './middleware/auth';
 
 dotenv.config();
 
@@ -45,37 +46,100 @@ app.use(cors({
   credentials: true,
 }));
 
-// Rate limiting
-const limiter = rateLimit({
+// Global rate limiting (more restrictive)
+const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.',
+  max: 100, // limit each IP to 100 requests per 15 minutes
+  message: {
+    success: false,
+    error: {
+      message: 'Too many requests from this IP, please try again later.',
+      code: 'RATE_LIMIT_EXCEEDED'
+    }
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
 });
-app.use('/api/', limiter);
+
+// Stricter rate limiting for auth endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // limit each IP to 10 login attempts per 15 minutes
+  message: {
+    success: false,
+    error: {
+      message: 'Too many authentication attempts from this IP, please try again later.',
+      code: 'AUTH_RATE_LIMIT_EXCEEDED'
+    }
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Apply rate limiting
+app.use('/api/', globalLimiter);
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Health check endpoint
+// Health check endpoint (public)
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
+  res.status(200).json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    version: process.env.npm_package_version || '1.0.0'
+  });
 });
 
-// API routes
+// Public authentication routes (login only)
 app.use('/api/auth', authRoutes);
+
+// 🔒 GLOBAL AUTHENTICATION PROTECTION FOR ALL API ROUTES
+// Apply authentication middleware to all routes except auth
+app.use('/api/*', authenticate);
+
+// Protected API routes
 app.use('/api/users', userRoutes);
 app.use('/api/properties', propertyRoutes);
-app.use('/api/leads', leadRoutes);
 app.use('/api/inspections', inspectionRoutes);
 app.use('/api/calls', callRoutes);
+app.use('/api/contacts', contactRoutes);
+
+// Security headers for API responses
+app.use('/api/*', (req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
+
+// Catch-all for unauthorized API access
+app.use('/api/*', (req, res) => {
+  res.status(401).json({
+    success: false,
+    error: {
+      message: 'Authentication required. Please provide a valid Bearer token.',
+      code: 'AUTHENTICATION_REQUIRED'
+    }
+  });
+});
 
 // Error handling middleware
 app.use(errorHandler);
 
-// 404 handler
+// 404 handler for non-API routes
 app.use('*', (req, res) => {
-  res.status(404).json({ error: 'Route not found' });
+  res.status(404).json({ 
+    success: false,
+    error: {
+      message: 'Route not found',
+      code: 'ROUTE_NOT_FOUND'
+    }
+  });
 });
 
 const PORT = process.env.PORT || 3001;
@@ -129,6 +193,7 @@ async function startServer() {
     app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`🌟 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log('🔒 API Security: LOCKED DOWN - Authentication required for all endpoints');
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);

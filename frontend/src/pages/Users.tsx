@@ -1,57 +1,55 @@
 import React, { useState, useEffect } from 'react'
 import {
   Box,
+  Card,
+  CardContent,
   Typography,
-  Button,
-  Paper,
+  Grid,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  TextField,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
+  Paper,
+  Chip,
   IconButton,
+  Button,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  Grid,
-  Chip,
-  Card,
-  CardContent,
+  TextField,
+  MenuItem,
   Alert,
+  CircularProgress,
   Pagination,
   Tooltip,
-  CircularProgress,
-  InputAdornment,
   Switch,
   FormControlLabel,
-  Divider,
   List,
   ListItem,
+  ListItemIcon,
   ListItemText,
-  ListItemIcon
+  Divider,
+  FormControl,
+  InputLabel,
+  Select,
+  InputAdornment,
 } from '@mui/material'
 import {
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
-  Search as SearchIcon,
+  Visibility as ViewIcon,
   Person as PersonIcon,
   AdminPanelSettings as AdminIcon,
-  Visibility as ViewIcon,
   SupervisorAccount as ManagerIcon,
   Engineering as InspectorIcon,
-  Assignment as TaskIcon,
-  Home as PropertyIcon,
-  People as LeadsIcon,
-  Block as BlockIcon,
-  CheckCircle as ActiveIcon
+  Phone as CallsIcon,
+  CheckCircle as ActiveIcon,
+  Cancel as InactiveIcon,
+  Search as SearchIcon,
 } from '@mui/icons-material'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
@@ -63,11 +61,11 @@ interface User {
   lastName: string
   role: 'ADMIN' | 'MANAGER' | 'INSPECTOR' | 'USER'
   active: boolean
+  employeeId?: string
   createdAt: string
   updatedAt: string
   _count: {
-    createdLeads: number
-    assignedLeads: number
+    calls: number
     inspections: number
     createdProperties?: number
   }
@@ -78,6 +76,7 @@ interface UserFormData {
   firstName: string
   lastName: string
   role: 'ADMIN' | 'MANAGER' | 'INSPECTOR' | 'USER'
+  employeeId: string
   generatePassword: boolean
   password?: string
 }
@@ -109,6 +108,7 @@ const Users: React.FC = () => {
     firstName: '',
     lastName: '',
     role: 'USER',
+    employeeId: '',
     generatePassword: true,
     password: ''
   })
@@ -189,6 +189,7 @@ const Users: React.FC = () => {
       firstName: '',
       lastName: '',
       role: 'USER',
+      employeeId: '',
       generatePassword: true,
       password: ''
     })
@@ -205,6 +206,7 @@ const Users: React.FC = () => {
       firstName: user.firstName,
       lastName: user.lastName,
       role: user.role,
+      employeeId: user.employeeId || '',
       generatePassword: false,
       password: ''
     })
@@ -545,7 +547,7 @@ const Users: React.FC = () => {
                             size="small"
                             label="Inactive"
                             color="default"
-                            icon={<BlockIcon />}
+                            icon={<InactiveIcon />}
                           />
                         )}
                       </Box>
@@ -553,10 +555,7 @@ const Users: React.FC = () => {
                     <TableCell>
                       <Box>
                         <Typography variant="body2">
-                          {user._count.createdLeads} leads created
-                        </Typography>
-                        <Typography variant="body2">
-                          {user._count.assignedLeads} leads assigned
+                          {user._count.calls} calls
                         </Typography>
                         <Typography variant="body2">
                           {user._count.inspections} inspections
@@ -592,7 +591,7 @@ const Users: React.FC = () => {
                             onClick={() => handleToggleActive(user)}
                             disabled={user.id === currentUser?.id}
                           >
-                            {user.active ? <BlockIcon /> : <ActiveIcon />}
+                            {user.active ? <InactiveIcon /> : <ActiveIcon />}
                           </IconButton>
                         </Tooltip>
                         <Tooltip title="Delete User">
@@ -655,6 +654,12 @@ const Users: React.FC = () => {
                   <Typography variant="subtitle2" gutterBottom>Email</Typography>
                   <Typography>{selectedUser.email}</Typography>
                 </Grid>
+                {selectedUser.employeeId && (
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="subtitle2" gutterBottom>Employee ID</Typography>
+                    <Typography>{selectedUser.employeeId}</Typography>
+                  </Grid>
+                )}
                 <Grid item xs={12} sm={6}>
                   <Typography variant="subtitle2" gutterBottom>Role</Typography>
                   <Chip
@@ -668,7 +673,7 @@ const Users: React.FC = () => {
                   <Chip
                     label={selectedUser.active ? 'Active' : 'Inactive'}
                     color={selectedUser.active ? 'success' : 'default'}
-                    icon={selectedUser.active ? <ActiveIcon /> : <BlockIcon />}
+                    icon={selectedUser.active ? <ActiveIcon /> : <InactiveIcon />}
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>
@@ -686,17 +691,10 @@ const Users: React.FC = () => {
               <Typography variant="h6" gutterBottom>Activity Summary</Typography>
               <List>
                 <ListItem>
-                  <ListItemIcon><LeadsIcon /></ListItemIcon>
+                  <ListItemIcon><CallsIcon /></ListItemIcon>
                   <ListItemText 
-                    primary="Leads Created" 
-                    secondary={selectedUser._count.createdLeads}
-                  />
-                </ListItem>
-                <ListItem>
-                  <ListItemIcon><TaskIcon /></ListItemIcon>
-                  <ListItemText 
-                    primary="Leads Assigned" 
-                    secondary={selectedUser._count.assignedLeads}
+                    primary="Calls" 
+                    secondary={selectedUser._count.calls}
                   />
                 </ListItem>
                 <ListItem>
@@ -706,15 +704,6 @@ const Users: React.FC = () => {
                     secondary={selectedUser._count.inspections}
                   />
                 </ListItem>
-                {selectedUser._count.createdProperties !== undefined && (
-                  <ListItem>
-                    <ListItemIcon><PropertyIcon /></ListItemIcon>
-                    <ListItemText 
-                      primary="Properties Created" 
-                      secondary={selectedUser._count.createdProperties}
-                    />
-                  </ListItem>
-                )}
               </List>
             </Box>
           ) : (
@@ -737,7 +726,7 @@ const Users: React.FC = () => {
                   disabled={isEditing}
                 />
               </Grid>
-              <Grid item xs={12}>
+              <Grid item xs={12} sm={6}>
                 <TextField
                   fullWidth
                   label="Email"
@@ -745,6 +734,15 @@ const Users: React.FC = () => {
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   disabled={isEditing}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Employee ID"
+                  value={formData.employeeId}
+                  onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
+                  helperText="Employee number (e.g., 801, 802, etc.)"
                 />
               </Grid>
               <Grid item xs={12}>

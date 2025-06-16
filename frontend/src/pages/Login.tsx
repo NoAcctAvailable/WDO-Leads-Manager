@@ -48,7 +48,7 @@ const Login: React.FC = () => {
         <Card sx={{ minWidth: 400 }}>
           <CardContent sx={{ p: 4 }}>
             <Typography component="h1" variant="h4" align="center" gutterBottom>
-              WDO Leads Manager
+              WDO Inspection Manager
             </Typography>
             <Typography variant="h6" align="center" color="textSecondary" gutterBottom>
               Sign in to your account

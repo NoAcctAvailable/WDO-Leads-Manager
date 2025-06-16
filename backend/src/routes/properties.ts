@@ -7,8 +7,7 @@ import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 const router = Router();
 const prisma = new PrismaClient();
 
-// Apply authentication to all routes
-router.use(authenticate);
+// Note: Authentication is now handled globally in index.ts
 
 // Validation rules
 const createPropertyValidation = [
@@ -51,6 +50,15 @@ router.get('/', [
     // Build filter conditions
     const where: any = {};
     
+    // Role-based filtering: Inspectors can only see properties with their inspections
+    if (req.user!.role === 'INSPECTOR') {
+      where.inspections = {
+        some: {
+          inspectorId: req.user!.id,
+        },
+      };
+    }
+    
     if (req.query.propertyType) {
       where.propertyType = req.query.propertyType;
     }
@@ -83,7 +91,7 @@ router.get('/', [
           },
           _count: {
             select: {
-              leads: true,
+              calls: true,
               inspections: true,
             },
           },
@@ -118,8 +126,18 @@ router.get('/:id', async (req: AuthRequest, res: Response, next: NextFunction) =
   try {
     const { id } = req.params;
 
-    const property = await prisma.property.findUnique({
-      where: { id },
+    // Role-based access: Inspectors can only view properties with their inspections
+    const whereCondition: any = { id };
+    if (req.user!.role === 'INSPECTOR') {
+      whereCondition.inspections = {
+        some: {
+          inspectorId: req.user!.id,
+        },
+      };
+    }
+
+    const property = await prisma.property.findFirst({
+      where: whereCondition,
       include: {
         createdBy: {
           select: {
@@ -129,44 +147,14 @@ router.get('/:id', async (req: AuthRequest, res: Response, next: NextFunction) =
             email: true,
           },
         },
-        leads: {
+        _count: {
           select: {
-            id: true,
-            contactName: true,
-            contactEmail: true,
-            contactPhone: true,
-            status: true,
-            priority: true,
-            createdAt: true,
-            assignedTo: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-              },
-            },
+            calls: true,
+            inspections: true,
           },
-          orderBy: { createdAt: 'desc' },
-        },
-        inspections: {
-          select: {
-            id: true,
-            scheduledDate: true,
-            completedDate: true,
-            status: true,
-            inspectionType: true,
-            cost: true,
-            inspector: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-              },
-            },
-          },
-          orderBy: { scheduledDate: 'desc' },
         },
         calls: {
+          where: req.user!.role === 'INSPECTOR' ? { madeById: req.user!.id } : undefined,
           select: {
             id: true,
             callType: true,
@@ -180,6 +168,15 @@ router.get('/:id', async (req: AuthRequest, res: Response, next: NextFunction) =
             reminderDate: true,
             completed: true,
             createdAt: true,
+            inspectionId: true,
+            inspection: {
+              select: {
+                id: true,
+                inspectionType: true,
+                status: true,
+                scheduledDate: true,
+              },
+            },
             madeBy: {
               select: {
                 id: true,
@@ -189,6 +186,43 @@ router.get('/:id', async (req: AuthRequest, res: Response, next: NextFunction) =
             },
           },
           orderBy: { createdAt: 'desc' },
+        },
+        inspections: {
+          where: req.user!.role === 'INSPECTOR' ? { inspectorId: req.user!.id } : undefined,
+          select: {
+            id: true,
+            scheduledDate: true,
+            completedDate: true,
+            status: true,
+            inspectionType: true,
+            findings: true,
+            recommendations: true,
+            cost: true,
+            inspector: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+          orderBy: { scheduledDate: 'desc' },
+        },
+        contacts: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            email: true,
+            role: true,
+            isPrimary: true,
+            notes: true,
+            createdAt: true,
+          },
+          orderBy: [
+            { isPrimary: 'desc' },
+            { createdAt: 'desc' }
+          ],
         },
       },
     });
@@ -328,7 +362,7 @@ router.delete('/:id', authorize('ADMIN', 'MANAGER'), async (req: AuthRequest, re
       include: {
         _count: {
           select: {
-            leads: true,
+            calls: true,
             inspections: true,
           },
         },
@@ -339,9 +373,9 @@ router.delete('/:id', authorize('ADMIN', 'MANAGER'), async (req: AuthRequest, re
       throw createError('Property not found', 404);
     }
 
-    // Check if property has associated leads or inspections
-    if (property._count.leads > 0 || property._count.inspections > 0) {
-      throw createError('Cannot delete property with associated leads or inspections', 400);
+    // Check if property has associated calls or inspections
+    if (property._count.calls > 0 || property._count.inspections > 0) {
+      throw createError('Cannot delete property with associated calls or inspections', 400);
     }
 
     await prisma.property.delete({
@@ -363,7 +397,7 @@ router.get('/stats/overview', authorize('ADMIN', 'MANAGER'), async (req: AuthReq
     const [
       totalProperties,
       propertiesByType,
-      propertiesWithLeads,
+      propertiesWithCalls,
       propertiesWithInspections,
       recentProperties,
     ] = await Promise.all([
@@ -374,7 +408,7 @@ router.get('/stats/overview', authorize('ADMIN', 'MANAGER'), async (req: AuthReq
       }),
       prisma.property.count({
         where: {
-          leads: {
+          calls: {
             some: {},
           },
         },
@@ -395,7 +429,7 @@ router.get('/stats/overview', authorize('ADMIN', 'MANAGER'), async (req: AuthReq
           },
           _count: {
             select: {
-              leads: true,
+              calls: true,
               inspections: true,
             },
           },
@@ -408,7 +442,7 @@ router.get('/stats/overview', authorize('ADMIN', 'MANAGER'), async (req: AuthReq
       data: {
         overview: {
           totalProperties,
-          propertiesWithLeads,
+          propertiesWithCalls,
           propertiesWithInspections,
         },
         typeDistribution: propertiesByType,

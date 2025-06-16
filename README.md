@@ -114,13 +114,20 @@ A comprehensive web application for managing Wood Destroying Organism (WDO) insp
 
 5. **Access the application**
    
-   **Automatic Temporary Admin Account**: When you start the application for the first time, a temporary admin account is automatically created:
+   **✨ Automatic Temporary Admin Account**: When you start the application for the first time, a temporary admin account is automatically created:
    
-   - **Email**: `admin@temp.local`
-   - **Password**: `WDOAdmin123!`
-   - **Note**: You will be required to change this password on first login for security
+   ```
+   📧 Email: admin@temp.local
+   🔒 Password: WDOAdmin123!
+   ```
    
-   Use these credentials to log in and create additional user accounts through the admin interface.
+   **⚠️ IMPORTANT SECURITY NOTES:**
+   - You **MUST** change this password on first login
+   - The system will force a password change for security
+   - Use this account to create additional users through the admin interface
+   - For production environments, change this password immediately
+   
+   Navigate to the application URL and use these exact credentials to log in.
 
 6. **Create additional users** (optional)
    ```bash

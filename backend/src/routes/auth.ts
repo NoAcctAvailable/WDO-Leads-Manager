@@ -108,9 +108,17 @@ router.get('/profile', authenticate, async (req: AuthRequest, res: Response, nex
         firstName: true,
         lastName: true,
         role: true,
+        employeeId: true,
         active: true,
         createdAt: true,
         updatedAt: true,
+        _count: {
+          select: {
+            calls: true,
+            inspections: true,
+            createdProperties: true,
+          },
+        },
       },
     });
 
@@ -120,7 +128,7 @@ router.get('/profile', authenticate, async (req: AuthRequest, res: Response, nex
 
     res.json({
       success: true,
-      data: { user },
+      data: user,
     });
   } catch (error) {
     next(error);
@@ -190,13 +198,29 @@ router.put('/change-password', authenticate, [
         firstName: true,
         lastName: true,
         role: true,
+        active: true,
+        isFirstLogin: true,
         updatedAt: true,
       },
     });
 
+    // Generate new JWT token with updated user info
+    const token = jwt.sign(
+      { 
+        id: updatedUser.id, 
+        email: updatedUser.email, 
+        role: updatedUser.role 
+      },
+      process.env.JWT_SECRET!,
+      { expiresIn: '24h' }
+    );
+
     res.json({
       success: true,
-      data: { user: updatedUser },
+      data: { 
+        user: updatedUser,
+        token 
+      },
       message: 'Password changed successfully',
     });
   } catch (error) {
@@ -209,6 +233,7 @@ router.put('/profile', authenticate, [
   body('firstName').optional().notEmpty().trim(),
   body('lastName').optional().notEmpty().trim(),
   body('email').optional().isEmail().normalizeEmail(),
+  body('employeeId').optional().trim(),
 ], async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const errors = validationResult(req);
@@ -216,7 +241,7 @@ router.put('/profile', authenticate, [
       return res.status(400).json({ success: false, errors: errors.array() });
     }
 
-    const { firstName, lastName, email } = req.body;
+    const { firstName, lastName, email, employeeId } = req.body;
     const updateData: any = {};
 
     if (firstName) updateData.firstName = firstName;
@@ -231,6 +256,21 @@ router.put('/profile', authenticate, [
       }
       updateData.email = email;
     }
+    if (employeeId !== undefined) {
+      // Check if employeeId is already taken by another user (if not empty)
+      if (employeeId && employeeId.trim()) {
+        const existingEmployeeId = await prisma.user.findFirst({
+          where: { employeeId: employeeId.trim(), NOT: { id: req.user!.id } },
+        });
+        if (existingEmployeeId) {
+          throw createError('Employee ID already in use', 400);
+        }
+        updateData.employeeId = employeeId.trim();
+      } else {
+        // Allow clearing the employeeId by setting it to null
+        updateData.employeeId = null;
+      }
+    }
 
     const updatedUser = await prisma.user.update({
       where: { id: req.user!.id },
@@ -241,13 +281,23 @@ router.put('/profile', authenticate, [
         firstName: true,
         lastName: true,
         role: true,
+        employeeId: true,
+        active: true,
+        createdAt: true,
         updatedAt: true,
+        _count: {
+          select: {
+            calls: true,
+            inspections: true,
+            createdProperties: true,
+          },
+        },
       },
     });
 
     res.json({
       success: true,
-      data: { user: updatedUser },
+      data: updatedUser,
       message: 'Profile updated successfully',
     });
   } catch (error) {

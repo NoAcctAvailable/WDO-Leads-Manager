@@ -22,7 +22,7 @@ interface FirstLoginDialogProps {
     lastName: string
     role: string
   }
-  onComplete: (updatedUser: any) => void
+  onComplete: (updatedUser: any, token?: string) => void
 }
 
 const FirstLoginDialog: React.FC<FirstLoginDialogProps> = ({
@@ -74,7 +74,8 @@ const FirstLoginDialog: React.FC<FirstLoginDialogProps> = ({
         email: formData.email,
       })
 
-      onComplete(response.data.data.user)
+      // Pass both user and token to update the auth context
+      onComplete(response.data.data.user, response.data.data.token)
     } catch (error: any) {
       const errorMessage = error.response?.data?.error?.message || 
                           error.response?.data?.errors?.[0]?.msg ||
@@ -96,7 +97,7 @@ const FirstLoginDialog: React.FC<FirstLoginDialogProps> = ({
       }}
     >
       <DialogTitle sx={{ textAlign: 'center', pb: 1 }}>
-        Welcome to WDO Leads Manager
+                    Welcome to WDO Inspection Manager
       </DialogTitle>
       
       <DialogContent>

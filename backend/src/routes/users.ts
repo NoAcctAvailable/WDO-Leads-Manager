@@ -18,6 +18,7 @@ router.post('/', authorize('ADMIN'), [
   body('firstName').notEmpty().trim(),
   body('lastName').notEmpty().trim(),
   body('role').isIn(['ADMIN', 'MANAGER', 'INSPECTOR', 'USER']),
+  body('employeeId').optional().trim(),
   body('generatePassword').optional().isBoolean(),
 ], async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
@@ -26,12 +27,20 @@ router.post('/', authorize('ADMIN'), [
       return res.status(400).json({ success: false, errors: errors.array() });
     }
 
-    const { email, password, firstName, lastName, role, generatePassword = false } = req.body;
+    const { email, password, firstName, lastName, role, employeeId, generatePassword = false } = req.body;
 
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
       throw createError('User already exists with this email', 400);
+    }
+
+    // Check if employeeId already exists (if provided)
+    if (employeeId) {
+      const existingEmployeeId = await prisma.user.findUnique({ where: { employeeId } });
+      if (existingEmployeeId) {
+        throw createError('Employee ID already exists', 400);
+      }
     }
 
     // Generate temporary password if requested, otherwise use provided password
@@ -50,20 +59,27 @@ router.post('/', authorize('ADMIN'), [
     const hashedPassword = await bcrypt.hash(finalPassword, saltRounds);
 
     // Create user (admin can set any role)
+    const userData: any = {
+      email,
+      password: hashedPassword,
+      firstName,
+      lastName,
+      role,
+    };
+
+    if (employeeId) {
+      userData.employeeId = employeeId;
+    }
+
     const user = await prisma.user.create({
-      data: {
-        email,
-        password: hashedPassword,
-        firstName,
-        lastName,
-        role,
-      },
+      data: userData,
       select: {
         id: true,
         email: true,
         firstName: true,
         lastName: true,
         role: true,
+        employeeId: true,
         active: true,
         createdAt: true,
       },
@@ -137,9 +153,9 @@ router.get('/', authorize('ADMIN', 'MANAGER'), [
           updatedAt: true,
           _count: {
             select: {
-              createdLeads: true,
-              assignedLeads: true,
+              calls: true,
               inspections: true,
+              createdProperties: true,
             },
           },
         },
@@ -168,6 +184,41 @@ router.get('/', authorize('ADMIN', 'MANAGER'), [
   }
 });
 
+// Get user by employee ID (for looking up inspector UUID from employee number)
+router.get('/by-employee/:employeeId', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { employeeId } = req.params;
+
+    const user = await prisma.user.findUnique({
+      where: { employeeId },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        employeeId: true,
+        active: true,
+      },
+    });
+
+    if (!user) {
+      throw createError('User not found with employee ID: ' + employeeId, 404);
+    }
+
+    if (!user.active) {
+      throw createError('User account is inactive', 400);
+    }
+
+    res.json({
+      success: true,
+      data: { user },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Get user by ID (Admin/Manager only)
 router.get('/:id', authorize('ADMIN', 'MANAGER'), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
@@ -186,8 +237,7 @@ router.get('/:id', authorize('ADMIN', 'MANAGER'), async (req: AuthRequest, res: 
         updatedAt: true,
         _count: {
           select: {
-            createdLeads: true,
-            assignedLeads: true,
+            calls: true,
             inspections: true,
             createdProperties: true,
           },
@@ -270,8 +320,7 @@ router.delete('/:id', authorize('ADMIN'), async (req: AuthRequest, res: Response
       include: {
         _count: {
           select: {
-            createdLeads: true,
-            assignedLeads: true,
+            calls: true,
             inspections: true,
             createdProperties: true,
           },
@@ -284,9 +333,8 @@ router.delete('/:id', authorize('ADMIN'), async (req: AuthRequest, res: Response
     }
 
     // Check if user has associated data
-    const hasData = user._count.createdLeads > 0 || 
-                   user._count.assignedLeads > 0 || 
-                   user._count.inspections > 0 || 
+    const hasData = user._count.calls > 0 ||
+                   user._count.inspections > 0 ||
                    user._count.createdProperties > 0;
 
     if (hasData) {

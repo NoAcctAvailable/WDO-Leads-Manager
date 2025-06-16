@@ -19,12 +19,11 @@ model User {
   role      Role     @default(USER)
   active    Boolean  @default(true)
   isFirstLogin Boolean @default(false)
+  employeeId String? @unique  // Employee ID from legacy system (e.g., "801")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relations
-  createdLeads     Lead[]       @relation("CreatedBy")
-  assignedLeads    Lead[]       @relation("AssignedTo")
   createdProperties Property[] @relation("CreatedBy")
   inspections      Inspection[]
   calls            Call[]       @relation("CallMadeBy")
@@ -47,48 +46,20 @@ model Property {
   
   // Relations
   createdBy   User         @relation("CreatedBy", fields: [createdById], references: [id])
-  leads       Lead[]
   inspections Inspection[]
   calls       Call[]
+  contacts    Contact[]
 
   @@map("properties")
 }
 
-model Lead {
-  id              String     @id @default(cuid())
-  propertyId      String
-  contactName     String
-  contactEmail    String?
-  contactPhone    String?
-  status          LeadStatus @default(NEW)
-  priority        Priority   @default(MEDIUM)
-  source          String?
-  notes           String?
-  followUpDate    DateTime?
-  estimatedValue  Float?
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
-  createdById     String
-  assignedToId    String?
-
-  // Relations
-  property    Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  createdBy   User         @relation("CreatedBy", fields: [createdById], references: [id])
-  assignedTo  User?        @relation("AssignedTo", fields: [assignedToId], references: [id])
-  inspections Inspection[]
-  calls       Call[]
-
-  @@map("leads")
-}
-
 model Inspection {
   id                String           @id @default(cuid())
-  leadId            String?
   propertyId        String
   inspectorId       String
   scheduledDate     DateTime
   completedDate     DateTime?
-  status            InspectionStatus @default(SCHEDULED)
+  status            InspectionStatus @default(UNCONTACTED)
   inspectionType    InspectionType   @default(WDO)
   findings          String?
   recommendations   String?
@@ -99,7 +70,6 @@ model Inspection {
   updatedAt         DateTime         @updatedAt
 
   // Relations
-  lead      Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
   property  Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   inspector User     @relation(fields: [inspectorId], references: [id])
   calls     Call[]
@@ -111,7 +81,6 @@ model Call {
   id            String     @id @default(cuid())
   propertyId    String
   inspectionId  String?
-  leadId        String?
   madeById      String
   callType      CallType   @default(OUTBOUND)
   purpose       CallPurpose @default(FOLLOW_UP)
@@ -129,10 +98,27 @@ model Call {
   // Relations
   property     Property    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   inspection   Inspection? @relation(fields: [inspectionId], references: [id], onDelete: SetNull)
-  lead         Lead?       @relation(fields: [leadId], references: [id], onDelete: SetNull)
   madeBy       User        @relation("CallMadeBy", fields: [madeById], references: [id])
 
   @@map("calls")
+}
+
+model Contact {
+  id          String   @id @default(cuid())
+  propertyId  String
+  name        String
+  phone       String?
+  email       String?
+  role        String?  // Owner, Tenant, Agent, etc.
+  isPrimary   Boolean  @default(false)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@map("contacts")
 }
 
 enum Role {
@@ -149,29 +135,11 @@ enum PropertyType {
   MIXED_USE
 }
 
-enum LeadStatus {
-  NEW
-  CONTACTED
-  SCHEDULED
-  IN_PROGRESS
-  COMPLETED
-  LOST
-  CANCELLED
-}
-
-enum Priority {
-  LOW
-  MEDIUM
-  HIGH
-  URGENT
-}
-
 enum InspectionStatus {
-  SCHEDULED
+  UNCONTACTED
   IN_PROGRESS
-  COMPLETED
-  CANCELLED
-  RESCHEDULED
+  SOLD
+  DECLINED
 }
 
 enum InspectionType {

@@ -13,10 +13,15 @@ router.use(authenticate);
 // Validation rules
 const createInspectionValidation = [
   body('propertyId').notEmpty().withMessage('Property ID is required'),
-  body('scheduledDate').isISO8601().withMessage('Valid scheduled date is required'),
+  body('scheduledDate').notEmpty().isISO8601().toDate().withMessage('Valid scheduled date is required'),
   body('inspectionType').optional().isIn(['WDO', 'TERMITE', 'PEST', 'MOISTURE', 'STRUCTURAL', 'PREVENTIVE']),
-  body('inspectorId').optional().isString(),
-  body('leadId').optional().isString(),
+  body('status').optional().isIn(['SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'RESCHEDULED']),
+  body('completedDate').optional().isISO8601().toDate(),
+  body('findings').optional().trim(),
+  body('recommendations').optional().trim(),
+  body('cost').optional().isFloat({ min: 0 }),
+  body('reportPath').optional().trim(),
+  body('photos').optional().isArray(),
 ];
 
 const updateInspectionValidation = [
@@ -34,13 +39,14 @@ const updateInspectionValidation = [
 router.get('/', [
   query('page').optional().isInt({ min: 1 }),
   query('limit').optional().isInt({ min: 1, max: 100 }),
+  query('propertyId').optional().isString(),
+  query('inspectorId').optional().isString(),
   query('status').optional().isIn(['SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'RESCHEDULED']),
   query('inspectionType').optional().isIn(['WDO', 'TERMITE', 'PEST', 'MOISTURE', 'STRUCTURAL', 'PREVENTIVE']),
-  query('inspectorId').optional().isString(),
-  query('propertyId').optional().isString(),
-  query('leadId').optional().isString(),
-  query('dateFrom').optional().isISO8601(),
-  query('dateTo').optional().isISO8601(),
+  query('scheduledAfter').optional().isISO8601().toDate(),
+  query('scheduledBefore').optional().isISO8601().toDate(),
+  query('completedAfter').optional().isISO8601().toDate(),
+  query('completedBefore').optional().isISO8601().toDate(),
 ], async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const errors = validationResult(req);
@@ -55,22 +61,26 @@ router.get('/', [
     // Build filter conditions
     const where: any = {};
     
-    if (req.query.status) where.status = req.query.status;
-    if (req.query.inspectionType) where.inspectionType = req.query.inspectionType;
-    if (req.query.inspectorId) where.inspectorId = req.query.inspectorId;
-    if (req.query.propertyId) where.propertyId = req.query.propertyId;
-    if (req.query.leadId) where.leadId = req.query.leadId;
-    
-    // Date range filter
-    if (req.query.dateFrom || req.query.dateTo) {
-      where.scheduledDate = {};
-      if (req.query.dateFrom) where.scheduledDate.gte = new Date(req.query.dateFrom as string);
-      if (req.query.dateTo) where.scheduledDate.lte = new Date(req.query.dateTo as string);
-    }
-
-    // If user is inspector, only show their inspections
+    // Role-based filtering: Inspectors can only see their own inspections
     if (req.user!.role === 'INSPECTOR') {
       where.inspectorId = req.user!.id;
+    }
+    
+    if (req.query.propertyId) where.propertyId = req.query.propertyId;
+    if (req.query.inspectorId) where.inspectorId = req.query.inspectorId;
+    if (req.query.status) where.status = req.query.status;
+    if (req.query.inspectionType) where.inspectionType = req.query.inspectionType;
+    
+    if (req.query.scheduledAfter || req.query.scheduledBefore) {
+      where.scheduledDate = {};
+      if (req.query.scheduledAfter) where.scheduledDate.gte = new Date(req.query.scheduledAfter as string);
+      if (req.query.scheduledBefore) where.scheduledDate.lte = new Date(req.query.scheduledBefore as string);
+    }
+    
+    if (req.query.completedAfter || req.query.completedBefore) {
+      where.completedDate = {};
+      if (req.query.completedAfter) where.completedDate.gte = new Date(req.query.completedAfter as string);
+      if (req.query.completedBefore) where.completedDate.lte = new Date(req.query.completedBefore as string);
     }
 
     const [inspections, total] = await Promise.all([
@@ -87,7 +97,6 @@ router.get('/', [
               city: true,
               state: true,
               zipCode: true,
-              propertyType: true,
             },
           },
           inspector: {
@@ -98,14 +107,17 @@ router.get('/', [
               email: true,
             },
           },
-          lead: {
+          calls: {
+            where: req.user!.role === 'INSPECTOR' ? { madeById: req.user!.id } : undefined,
             select: {
               id: true,
+              callType: true,
+              purpose: true,
               contactName: true,
-              contactEmail: true,
-              status: true,
-              priority: true,
+              outcome: true,
+              createdAt: true,
             },
+            orderBy: { createdAt: 'desc' },
           },
         },
       }),
@@ -160,16 +172,17 @@ router.get('/:id', async (req: AuthRequest, res: Response, next: NextFunction) =
             email: true,
           },
         },
-        lead: {
+        calls: {
+          where: req.user!.role === 'INSPECTOR' ? { madeById: req.user!.id } : undefined,
           select: {
             id: true,
+            callType: true,
+            purpose: true,
             contactName: true,
-            contactEmail: true,
-            contactPhone: true,
-            status: true,
-            priority: true,
-            notes: true,
+            outcome: true,
+            createdAt: true,
           },
+          orderBy: { createdAt: 'desc' },
         },
       },
     });
@@ -205,7 +218,6 @@ router.post('/', createInspectionValidation, async (req: AuthRequest, res: Respo
       scheduledDate,
       inspectionType = 'WDO',
       inspectorId,
-      leadId,
     } = req.body;
 
     // Verify property exists
@@ -217,20 +229,7 @@ router.post('/', createInspectionValidation, async (req: AuthRequest, res: Respo
       throw createError('Property not found', 404);
     }
 
-    // Verify lead exists if provided
-    if (leadId) {
-      const lead = await prisma.lead.findUnique({
-        where: { id: leadId },
-      });
-
-      if (!lead) {
-        throw createError('Lead not found', 404);
-      }
-
-      if (lead.propertyId !== propertyId) {
-        throw createError('Lead does not belong to the specified property', 400);
-      }
-    }
+    // Property verification is sufficient for inspections
 
     // Determine inspector
     let finalInspectorId = inspectorId;
@@ -263,7 +262,6 @@ router.post('/', createInspectionValidation, async (req: AuthRequest, res: Respo
         scheduledDate: new Date(scheduledDate),
         inspectionType,
         inspectorId: finalInspectorId,
-        leadId,
       },
       include: {
         property: {
@@ -284,13 +282,17 @@ router.post('/', createInspectionValidation, async (req: AuthRequest, res: Respo
             email: true,
           },
         },
-        lead: {
+        calls: {
           select: {
             id: true,
+            callType: true,
+            purpose: true,
             contactName: true,
-            contactEmail: true,
-            status: true,
+            outcome: true,
+            createdAt: true,
           },
+          orderBy: { createdAt: 'desc' },
+          take: 5,
         },
       },
     });
@@ -365,8 +367,8 @@ router.put('/:id', updateInspectionValidation, async (req: AuthRequest, res: Res
       updateData.inspectorId = req.body.inspectorId;
     }
 
-    // Auto-set completed date when status changes to COMPLETED
-    if (req.body.status === 'COMPLETED' && !req.body.completedDate) {
+    // Auto-set completed date when status changes to SOLD
+    if (req.body.status === 'SOLD' && !req.body.completedDate) {
       updateData.completedDate = new Date();
     }
 
@@ -392,13 +394,17 @@ router.put('/:id', updateInspectionValidation, async (req: AuthRequest, res: Res
             email: true,
           },
         },
-        lead: {
+        calls: {
           select: {
             id: true,
+            callType: true,
+            purpose: true,
             contactName: true,
-            contactEmail: true,
-            status: true,
+            outcome: true,
+            createdAt: true,
           },
+          orderBy: { createdAt: 'desc' },
+          take: 5,
         },
       },
     });
@@ -444,8 +450,8 @@ router.get('/stats/overview', authorize('ADMIN', 'MANAGER'), async (req: AuthReq
   try {
     const [
       totalInspections,
-      scheduledInspections,
-      completedInspections,
+      uncontactedInspections,
+      soldInspections,
       inProgressInspections,
       inspectionsByType,
       inspectionsByStatus,
@@ -453,8 +459,8 @@ router.get('/stats/overview', authorize('ADMIN', 'MANAGER'), async (req: AuthReq
       revenueThisMonth,
     ] = await Promise.all([
       prisma.inspection.count(),
-      prisma.inspection.count({ where: { status: 'SCHEDULED' } }),
-      prisma.inspection.count({ where: { status: 'COMPLETED' } }),
+      prisma.inspection.count({ where: { status: 'UNCONTACTED' } }),
+      prisma.inspection.count({ where: { status: 'SOLD' } }),
       prisma.inspection.count({ where: { status: 'IN_PROGRESS' } }),
       prisma.inspection.groupBy({
         by: ['inspectionType'],
@@ -470,7 +476,7 @@ router.get('/stats/overview', authorize('ADMIN', 'MANAGER'), async (req: AuthReq
             gte: new Date(),
             lte: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // Next 7 days
           },
-          status: 'SCHEDULED',
+          status: 'UNCONTACTED',
         },
         take: 10,
         orderBy: { scheduledDate: 'asc' },
@@ -499,8 +505,8 @@ router.get('/stats/overview', authorize('ADMIN', 'MANAGER'), async (req: AuthReq
       data: {
         overview: {
           totalInspections,
-          scheduledInspections,
-          completedInspections,
+          uncontactedInspections,
+          soldInspections,
           inProgressInspections,
           revenueThisMonth: revenueThisMonth._sum.cost || 0,
         },

@@ -14,7 +14,6 @@ router.use(authenticate);
 const createCallValidation = [
   body('propertyId').notEmpty().withMessage('Property ID is required'),
   body('inspectionId').optional().isString(),
-  body('leadId').optional().isString(),
   body('callType').optional().isIn(['INBOUND', 'OUTBOUND']),
   body('purpose').optional().isIn([
     'INITIAL_CONTACT', 'FOLLOW_UP', 'SCHEDULING', 'CONFIRMATION', 'RESCHEDULING',
@@ -58,7 +57,6 @@ router.get('/', [
   query('limit').optional().isInt({ min: 1, max: 100 }),
   query('propertyId').optional().isString(),
   query('inspectionId').optional().isString(),
-  query('leadId').optional().isString(),
   query('callType').optional().isIn(['INBOUND', 'OUTBOUND']),
   query('purpose').optional().isString(),
   query('outcome').optional().isString(),
@@ -79,9 +77,13 @@ router.get('/', [
     // Build filter conditions
     const where: any = {};
     
+    // Role-based filtering: Inspectors can only see calls they made
+    if (req.user!.role === 'INSPECTOR') {
+      where.madeById = req.user!.id;
+    }
+    
     if (req.query.propertyId) where.propertyId = req.query.propertyId;
     if (req.query.inspectionId) where.inspectionId = req.query.inspectionId;
-    if (req.query.leadId) where.leadId = req.query.leadId;
     if (req.query.callType) where.callType = req.query.callType;
     if (req.query.purpose) where.purpose = req.query.purpose;
     if (req.query.outcome) where.outcome = req.query.outcome;
@@ -117,15 +119,6 @@ router.get('/', [
               id: true,
               scheduledDate: true,
               inspectionType: true,
-              status: true,
-            },
-          },
-          lead: {
-            select: {
-              id: true,
-              contactName: true,
-              contactEmail: true,
-              contactPhone: true,
               status: true,
             },
           },
@@ -188,15 +181,6 @@ router.get('/:id', async (req: AuthRequest, res: Response, next: NextFunction) =
             status: true,
           },
         },
-        lead: {
-          select: {
-            id: true,
-            contactName: true,
-            contactEmail: true,
-            contactPhone: true,
-            status: true,
-          },
-        },
         madeBy: {
           select: {
             id: true,
@@ -210,6 +194,11 @@ router.get('/:id', async (req: AuthRequest, res: Response, next: NextFunction) =
 
     if (!call) {
       throw createError('Call not found', 404);
+    }
+
+    // Check permissions - inspectors can only view calls they made
+    if (req.user!.role === 'INSPECTOR' && call.madeById !== req.user!.id) {
+      throw createError('Access denied', 403);
     }
 
     res.json({
@@ -232,7 +221,6 @@ router.post('/', createCallValidation, async (req: AuthRequest, res: Response, n
     const {
       propertyId,
       inspectionId,
-      leadId,
       callType = 'OUTBOUND',
       purpose = 'FOLLOW_UP',
       contactName,
@@ -249,7 +237,6 @@ router.post('/', createCallValidation, async (req: AuthRequest, res: Response, n
       data: {
         propertyId,
         inspectionId,
-        leadId,
         madeById: req.user!.id,
         callType,
         purpose,
@@ -277,15 +264,6 @@ router.post('/', createCallValidation, async (req: AuthRequest, res: Response, n
             id: true,
             scheduledDate: true,
             inspectionType: true,
-            status: true,
-          },
-        },
-        lead: {
-          select: {
-            id: true,
-            contactName: true,
-            contactEmail: true,
-            contactPhone: true,
             status: true,
           },
         },
@@ -365,15 +343,6 @@ router.put('/:id', updateCallValidation, async (req: AuthRequest, res: Response,
             id: true,
             scheduledDate: true,
             inspectionType: true,
-            status: true,
-          },
-        },
-        lead: {
-          select: {
-            id: true,
-            contactName: true,
-            contactEmail: true,
-            contactPhone: true,
             status: true,
           },
         },
@@ -460,15 +429,6 @@ router.get('/reminders/upcoming', [
             status: true,
           },
         },
-        lead: {
-          select: {
-            id: true,
-            contactName: true,
-            contactEmail: true,
-            contactPhone: true,
-            status: true,
-          },
-        },
         madeBy: {
           select: {
             id: true,
@@ -515,15 +475,6 @@ router.get('/reminders/overdue', async (req: AuthRequest, res: Response, next: N
             id: true,
             scheduledDate: true,
             inspectionType: true,
-            status: true,
-          },
-        },
-        lead: {
-          select: {
-            id: true,
-            contactName: true,
-            contactEmail: true,
-            contactPhone: true,
             status: true,
           },
         },

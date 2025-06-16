@@ -17,6 +17,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>
   logout: () => void
   updateProfile: (data: Partial<User>) => Promise<void>
+  updateUserAndToken: (user: User, token?: string) => void
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -82,6 +83,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }
 
+  const updateUserAndToken = (userData: User, newToken?: string) => {
+    setUser(userData)
+    localStorage.setItem('user', JSON.stringify(userData))
+    
+    if (newToken) {
+      setToken(newToken)
+      localStorage.setItem('token', newToken)
+    }
+  }
+
   const value: AuthContextType = {
     user,
     token,
@@ -89,6 +100,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     login,
     logout,
     updateProfile,
+    updateUserAndToken,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

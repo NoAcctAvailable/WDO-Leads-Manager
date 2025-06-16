@@ -22,6 +22,8 @@ import {
   Assignment,
   Logout,
   Person,
+  Settings,
+  Code,
 } from '@mui/icons-material'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
@@ -39,12 +41,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const menuItems = [
     { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
     { text: 'Properties', icon: <Home />, path: '/properties' },
-    { text: 'Leads', icon: <People />, path: '/leads' },
     { text: 'Inspections', icon: <Assignment />, path: '/inspections' },
   ]
 
   if (user && (user.role === 'ADMIN' || user.role === 'MANAGER')) {
     menuItems.push({ text: 'Users', icon: <People />, path: '/users' })
+  }
+
+  if (user && user.role === 'ADMIN') {
+    menuItems.push({ text: 'API Docs', icon: <Code />, path: '/api-docs' })
   }
 
   const handleProfileMenu = (event: React.MouseEvent<HTMLElement>) => {
@@ -75,7 +80,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <MenuIcon />
           </IconButton>
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-            WDO Leads Manager
+            WDO Inspection Manager
           </Typography>
           <IconButton color="inherit" onClick={handleProfileMenu}>
             <Avatar sx={{ bgcolor: 'secondary.main' }}>
@@ -92,6 +97,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <Person fontSize="small" />
               </ListItemIcon>
               Profile
+            </MenuItem>
+            <MenuItem onClick={() => { navigate('/settings'); handleCloseProfileMenu() }}>
+              <ListItemIcon>
+                <Settings fontSize="small" />
+              </ListItemIcon>
+              Settings
             </MenuItem>
             <MenuItem onClick={handleLogout}>
               <ListItemIcon>
