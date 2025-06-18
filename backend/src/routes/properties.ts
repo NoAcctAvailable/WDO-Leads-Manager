@@ -286,7 +286,15 @@ router.post('/', createPropertyValidation, async (req: AuthRequest, res: Respons
       data: { property },
       message: 'Property created successfully',
     });
-  } catch (error) {
+  } catch (error: any) {
+    // Handle unique constraint violation for duplicate address
+    if (error.code === 'P2002' && error.meta?.target?.includes('address')) {
+      return res.status(409).json({
+        success: false,
+        message: `A property with the address "${req.body.address}" already exists. Each property must have a unique address.`,
+        errors: [{ field: 'address', msg: 'Address already exists' }]
+      });
+    }
     next(error);
   }
 });
@@ -347,7 +355,15 @@ router.put('/:id', updatePropertyValidation, async (req: AuthRequest, res: Respo
       data: { property },
       message: 'Property updated successfully',
     });
-  } catch (error) {
+  } catch (error: any) {
+    // Handle unique constraint violation for duplicate address during update
+    if (error.code === 'P2002' && error.meta?.target?.includes('address')) {
+      return res.status(409).json({
+        success: false,
+        message: `A property with the address "${req.body.address}" already exists. Each property must have a unique address.`,
+        errors: [{ field: 'address', msg: 'Address already exists' }]
+      });
+    }
     next(error);
   }
 });

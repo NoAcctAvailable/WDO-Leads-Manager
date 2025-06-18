@@ -58,7 +58,7 @@ const sampleProperties = [
     zipCode: "30030",
     propertyType: "MIXED_USE",
     description: "Mixed-use building with retail and apartments",
-    notes: "Comprehensive WDO inspection needed"
+    notes: "Comprehensive inspection needed"
   },
   {
     address: "321 Peachtree Road",
@@ -101,31 +101,31 @@ const sampleProperties = [
 const sampleInspections = [
   {
     propertyAddress: "1234 Maple Street",
-    inspectionType: "TERMITE",
+    inspectionType: "FULL_INSPECTION",
     scheduledDate: new Date('2024-06-10'),
     findings: "Active termite infestation found in basement support beams. Moisture damage evident around foundation.",
     recommendations: "Immediate termite treatment required. Repair moisture issues and replace damaged wood.",
-    status: "COMPLETED"
+    status: "SOLD"
   },
   {
     propertyAddress: "5678 Oak Avenue",
-    inspectionType: "WDO",
+    inspectionType: "FULL_INSPECTION",
     scheduledDate: new Date('2024-06-15'),
-    findings: "No active WDO activity detected. Previous termite damage found in garage area, appears treated.",
+    findings: "No active pest activity detected. Previous termite damage found in garage area, appears treated.",
     recommendations: "Property suitable for purchase. Consider annual preventive treatment.",
-    status: "COMPLETED"
+    status: "SOLD"
   },
   {
     propertyAddress: "910 Pine Drive",
-    inspectionType: "PREVENTIVE",
+    inspectionType: "LIMITED_INSPECTION",
     scheduledDate: new Date('2024-06-20'),
     findings: "Minor carpenter ant activity in deck area. No termite activity detected.",
     recommendations: "Localized ant treatment applied. Remove wood debris near deck.",
-    status: "COMPLETED"
+    status: "SOLD"
   },
   {
     propertyAddress: "246 Commerce Plaza",
-    inspectionType: "PEST",
+    inspectionType: "EXCLUSION",
     scheduledDate: new Date('2024-06-25'),
     findings: "Multiple entry points found. Evidence of rodent activity in storage areas.",
     recommendations: "Seal entry points. Install monitoring stations. Quarterly follow-up recommended.",
@@ -133,51 +133,51 @@ const sampleInspections = [
   },
   {
     propertyAddress: "135 Industrial Way",
-    inspectionType: "MOISTURE",
+    inspectionType: "LIMITED_INSPECTION",
     scheduledDate: new Date('2024-06-18'),
     findings: "High moisture levels detected in northeast corner. Conducive conditions for termites.",
     recommendations: "Address moisture source immediately. Install dehumidification system.",
-    status: "COMPLETED"
+    status: "SOLD"
   },
   {
     propertyAddress: "789 Main Street",
-    inspectionType: "WDO",
+    inspectionType: "FULL_INSPECTION",
     scheduledDate: new Date('2024-06-30'),
     findings: "Extensive old termite damage in retail section. Active powder post beetle infestation in apartments.",
     recommendations: "Comprehensive treatment plan required. Replace damaged structural elements.",
-    status: "SCHEDULED"
+    status: "UNCONTACTED"
   },
   {
     propertyAddress: "321 Peachtree Road",
-    inspectionType: "WDO",
+    inspectionType: "FULL_INSPECTION",
     scheduledDate: new Date('2024-06-12'),
-    findings: "Foundation area clear of WDO activity. Soil treatment applied as preventive measure.",
+    findings: "Foundation area clear of pest activity. Soil treatment applied as preventive measure.",
     recommendations: "Proceed with renovation. Maintain preventive soil barrier.",
-    status: "COMPLETED"
+    status: "SOLD"
   },
   {
     propertyAddress: "654 Technology Drive",
-    inspectionType: "PEST",
+    inspectionType: "LIMITED_INSPECTION",
     scheduledDate: new Date('2024-06-22'),
     findings: "Minor ant trails in break room area. No structural pest activity detected.",
     recommendations: "Basic ant treatment applied. Improve sanitation practices.",
-    status: "COMPLETED"
+    status: "SOLD"
   },
   {
     propertyAddress: "987 Piedmont Avenue",
-    inspectionType: "WDO",
+    inspectionType: "FULL_INSPECTION",
     scheduledDate: new Date('2024-07-05'),
     findings: "",
     recommendations: "",
-    status: "SCHEDULED"
+    status: "UNCONTACTED"
   },
   {
     propertyAddress: "147 Business Center",
-    inspectionType: "PREVENTIVE",
+    inspectionType: "RE_INSPECTION",
     scheduledDate: new Date('2024-07-01'),
     findings: "",
     recommendations: "",
-    status: "SCHEDULED"
+    status: "UNCONTACTED"
   }
 ];
 
@@ -222,7 +222,7 @@ const sampleCalls = [
     contactName: "Michael Chen",
     contactPhone: "(770) 555-0456",
     duration: 15,
-    notes: "Realtor requested pre-purchase WDO inspection. Property under contract, closing in 3 weeks.",
+    notes: "Realtor requested pre-purchase inspection. Property under contract, closing in 3 weeks.",
     outcome: "SCHEDULED",
     daysAgo: 12
   },
@@ -288,7 +288,7 @@ const sampleCalls = [
     contactName: "Patricia Davis",
     contactPhone: "(404) 555-0987",
     duration: 22,
-    notes: "Property manager inquiring about comprehensive WDO inspection for mixed-use building. Discussed scope and pricing.",
+    notes: "Property manager inquiring about comprehensive inspection for mixed-use building. Discussed scope and pricing.",
     outcome: "SCHEDULED",
     daysAgo: 15
   },
@@ -417,11 +417,10 @@ async function addSampleProperties() {
     let skippedCount = 0;
 
     for (const propertyData of sampleProperties) {
-      // Check if property already exists
+      // Check if property already exists (by address only since addresses should be unique)
       const existing = await prisma.property.findFirst({
         where: { 
-          address: propertyData.address,
-          city: propertyData.city 
+          address: propertyData.address
         }
       });
 
@@ -499,7 +498,7 @@ async function addSampleInspections() {
           findings: inspectionData.findings,
           recommendations: inspectionData.recommendations,
           status: inspectionData.status,
-          completedDate: inspectionData.status === 'COMPLETED' ? inspectionData.scheduledDate : null
+          completedDate: inspectionData.status === 'SOLD' ? inspectionData.scheduledDate : null
         }
       });
 
@@ -611,51 +610,32 @@ async function removeSampleCalls() {
   try {
     console.log('🗑️  Removing sample calls...');
     
-    let removedCount = 0;
-    let skippedCount = 0;
-
-    for (const callData of sampleCalls) {
-      // Find the property by address
-      const property = await prisma.property.findFirst({
-        where: { 
-          address: callData.propertyAddress
-        }
-      });
-
-      if (!property) {
-        console.log(`⏭️  Skipped: ${callData.propertyAddress} (property not found)`);
-        skippedCount++;
-        continue;
+    // Get all sample property addresses
+    const sampleAddresses = sampleProperties.map(p => p.address);
+    
+    // Find all properties that match sample addresses
+    const properties = await prisma.property.findMany({
+      where: { 
+        address: { in: sampleAddresses }
       }
+    });
 
-      // Find matching calls
-      const calls = await prisma.call.findMany({
-        where: { 
-          propertyId: property.id,
-          contactName: callData.contactName,
-          purpose: callData.purpose
-        }
-      });
-
-      if (calls.length === 0) {
-        console.log(`⏭️  No calls found for: ${callData.propertyAddress} - ${callData.purpose}`);
-        skippedCount++;
-        continue;
-      }
-
-      // Remove the calls
-      for (const call of calls) {
-        await prisma.call.delete({
-          where: { id: call.id }
-        });
-        console.log(`✅ Removed call: ${callData.propertyAddress} - ${callData.purpose}`);
-        removedCount++;
-      }
+    if (properties.length === 0) {
+      console.log('⏭️  No sample properties found');
+      return;
     }
 
+    const propertyIds = properties.map(p => p.id);
+
+    // Remove all calls for sample properties
+    const deletedCalls = await prisma.call.deleteMany({
+      where: {
+        propertyId: { in: propertyIds }
+      }
+    });
+
     console.log(`\n📊 Summary:`);
-    console.log(`   • Removed: ${removedCount} calls`);
-    console.log(`   • Skipped: ${skippedCount} calls (not found)`);
+    console.log(`   • Removed: ${deletedCalls.count} calls from sample properties`);
 
   } catch (error) {
     console.error('❌ Error removing sample calls:', error);
@@ -667,52 +647,32 @@ async function removeSampleInspections() {
   try {
     console.log('🗑️  Removing sample inspections...');
     
-    let removedCount = 0;
-    let skippedCount = 0;
-
-    for (const inspectionData of sampleInspections) {
-      // Find the property by address
-      const property = await prisma.property.findFirst({
-        where: { 
-          address: inspectionData.propertyAddress
-        }
-      });
-
-      if (!property) {
-        console.log(`⏭️  Skipped: ${inspectionData.propertyAddress} (property not found)`);
-        skippedCount++;
-        continue;
+    // Get all sample property addresses
+    const sampleAddresses = sampleProperties.map(p => p.address);
+    
+    // Find all properties that match sample addresses
+    const properties = await prisma.property.findMany({
+      where: { 
+        address: { in: sampleAddresses }
       }
+    });
 
-      // Find matching inspections
-      const inspections = await prisma.inspection.findMany({
-        where: { 
-          propertyId: property.id,
-          inspectionType: inspectionData.inspectionType,
-          scheduledDate: inspectionData.scheduledDate
-        }
-      });
-
-      if (inspections.length === 0) {
-        console.log(`⏭️  Skipped: ${inspectionData.propertyAddress} - ${inspectionData.inspectionType} (not found)`);
-        skippedCount++;
-        continue;
-      }
-
-      // Remove all matching inspections
-      for (const inspection of inspections) {
-        await prisma.inspection.delete({
-          where: { id: inspection.id }
-        });
-        console.log(`✅ Removed inspection: ${inspectionData.propertyAddress} - ${inspectionData.inspectionType}`);
-        removedCount++;
-      }
+    if (properties.length === 0) {
+      console.log('⏭️  No sample properties found');
+      return;
     }
 
+    const propertyIds = properties.map(p => p.id);
+
+    // Remove all inspections for sample properties
+    const deletedInspections = await prisma.inspection.deleteMany({
+      where: {
+        propertyId: { in: propertyIds }
+      }
+    });
+
     console.log(`\n📊 Summary:`);
-    console.log(`   • Removed: ${removedCount} inspections`);
-    console.log(`   • Skipped: ${skippedCount} inspections (not found)`);
-    console.log(`   • Total sample inspections: ${sampleInspections.length}`);
+    console.log(`   • Removed: ${deletedInspections.count} inspections from sample properties`);
 
   } catch (error) {
     console.error('❌ Error removing sample inspections:', error);
@@ -725,46 +685,55 @@ async function removeSampleProperties() {
     console.log('🗑️  Removing sample properties...');
     
     const sampleAddresses = sampleProperties.map(p => p.address);
-    let removedCount = 0;
-    let skippedCount = 0;
-
-    for (const address of sampleAddresses) {
-      const property = await prisma.property.findFirst({
-        where: { address },
-        include: {
-          _count: {
-            select: {
-              calls: true,
-              inspections: true
-            }
+    
+    // Find all properties that match sample addresses and have no dependent data
+    const properties = await prisma.property.findMany({
+      where: { 
+        address: { in: sampleAddresses }
+      },
+      include: {
+        _count: {
+          select: {
+            calls: true,
+            inspections: true
           }
         }
-      });
-
-      if (!property) {
-        console.log(`⏭️  Skipped: ${address} (not found)`);
-        skippedCount++;
-        continue;
       }
+    });
 
-      // Check if property has associated data
-      if (property._count.calls > 0 || property._count.inspections > 0) {
-        console.log(`⚠️  Skipped: ${address} (has ${property._count.calls} calls, ${property._count.inspections} inspections)`);
-        skippedCount++;
-        continue;
-      }
+    if (properties.length === 0) {
+      console.log('⏭️  No sample properties found');
+      return;
+    }
 
-      await prisma.property.delete({
-        where: { id: property.id }
+    // Filter properties that can be safely deleted (no dependent data)
+    const safeToDelete = properties.filter(p => p._count.calls === 0 && p._count.inspections === 0);
+    const hasData = properties.filter(p => p._count.calls > 0 || p._count.inspections > 0);
+
+    // Remove safe properties
+    if (safeToDelete.length > 0) {
+      const propertyIds = safeToDelete.map(p => p.id);
+      const deletedProperties = await prisma.property.deleteMany({
+        where: {
+          id: { in: propertyIds }
+        }
       });
+      
+      console.log(`✅ Removed ${deletedProperties.count} properties`);
+      safeToDelete.forEach(p => console.log(`   • ${p.address}`));
+    }
 
-      console.log(`✅ Removed: ${address}`);
-      removedCount++;
+    // Report properties that couldn't be deleted
+    if (hasData.length > 0) {
+      console.log(`\n⚠️  ${hasData.length} properties skipped (have dependent data):`);
+      hasData.forEach(p => {
+        console.log(`   • ${p.address} (${p._count.calls} calls, ${p._count.inspections} inspections)`);
+      });
     }
 
     console.log(`\n📊 Summary:`);
-    console.log(`   • Removed: ${removedCount} properties`);
-    console.log(`   • Skipped: ${skippedCount} properties (not found or have data)`);
+    console.log(`   • Removed: ${safeToDelete.length} properties`);
+    console.log(`   • Skipped: ${hasData.length} properties (have dependent data)`);
     console.log(`   • Total sample addresses: ${sampleAddresses.length}`);
 
   } catch (error) {
@@ -833,9 +802,10 @@ async function showStatus() {
       if (property.inspections.length > 0) {
         console.log(`     Inspections:`);
         property.inspections.forEach(inspection => {
-          const statusIcon = inspection.status === 'COMPLETED' ? '✅' : 
-                           inspection.status === 'IN_PROGRESS' ? '🔄' : '📅';
-          console.log(`       ${statusIcon} ${inspection.inspectionType} - ${inspection.status} (${inspection.scheduledDate.toDateString()})`);
+                const statusIcon = inspection.status === 'SOLD' ? '✅' :
+                         inspection.status === 'IN_PROGRESS' ? '🔄' : 
+                         inspection.status === 'DECLINED' ? '❌' : '📅';
+      console.log(`       ${statusIcon} ${inspection.inspectionType} - ${inspection.status} (${inspection.scheduledDate.toDateString()})`);
         });
       }
     });
@@ -900,7 +870,7 @@ async function showStatus() {
 async function main() {
   const command = process.argv[2];
 
-  console.log('🚀 WDO Sample Data Manager\n');
+  console.log('🚀 Test Leads Sample Data Manager\n');
 
   try {
     await prisma.$connect();

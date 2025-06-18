@@ -14,7 +14,7 @@ router.use(authenticate);
 const createInspectionValidation = [
   body('propertyId').notEmpty().withMessage('Property ID is required'),
   body('scheduledDate').notEmpty().isISO8601().toDate().withMessage('Valid scheduled date is required'),
-  body('inspectionType').optional().isIn(['WDO', 'TERMITE', 'PEST', 'MOISTURE', 'STRUCTURAL', 'PREVENTIVE']),
+  body('inspectionType').optional().isIn(['FULL_INSPECTION', 'LIMITED_INSPECTION', 'RE_INSPECTION', 'EXCLUSION']),
   body('status').optional().isIn(['SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'RESCHEDULED']),
   body('completedDate').optional().isISO8601().toDate(),
   body('findings').optional().trim(),
@@ -28,7 +28,7 @@ const updateInspectionValidation = [
   body('scheduledDate').optional().isISO8601(),
   body('completedDate').optional().isISO8601(),
   body('status').optional().isIn(['SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'RESCHEDULED']),
-  body('inspectionType').optional().isIn(['WDO', 'TERMITE', 'PEST', 'MOISTURE', 'STRUCTURAL', 'PREVENTIVE']),
+  body('inspectionType').optional().isIn(['FULL_INSPECTION', 'LIMITED_INSPECTION', 'RE_INSPECTION', 'EXCLUSION']),
   body('findings').optional().trim(),
   body('recommendations').optional().trim(),
   body('cost').optional().isFloat({ min: 0 }),
@@ -42,7 +42,7 @@ router.get('/', [
   query('propertyId').optional().isString(),
   query('inspectorId').optional().isString(),
   query('status').optional().isIn(['SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'RESCHEDULED']),
-  query('inspectionType').optional().isIn(['WDO', 'TERMITE', 'PEST', 'MOISTURE', 'STRUCTURAL', 'PREVENTIVE']),
+  query('inspectionType').optional().isIn(['FULL_INSPECTION', 'LIMITED_INSPECTION', 'RE_INSPECTION', 'EXCLUSION']),
   query('scheduledAfter').optional().isISO8601().toDate(),
   query('scheduledBefore').optional().isISO8601().toDate(),
   query('completedAfter').optional().isISO8601().toDate(),
@@ -216,7 +216,7 @@ router.post('/', createInspectionValidation, async (req: AuthRequest, res: Respo
     const {
       propertyId,
       scheduledDate,
-      inspectionType = 'WDO',
+      inspectionType = 'FULL_INSPECTION',
       inspectorId,
     } = req.body;
 

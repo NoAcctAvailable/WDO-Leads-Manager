@@ -121,7 +121,7 @@ interface Inspection {
   scheduledDate: string
   completedDate?: string
   status: 'UNCONTACTED' | 'IN_PROGRESS' | 'SOLD' | 'DECLINED'
-  inspectionType: 'WDO' | 'TERMITE' | 'PEST' | 'MOISTURE' | 'STRUCTURAL' | 'PREVENTIVE'
+  inspectionType: string
   findings?: string
   recommendations?: string
   cost?: number
@@ -141,6 +141,15 @@ interface Contact {
   isPrimary: boolean
   notes?: string
   createdAt: string
+}
+
+interface InspectionTypeConfig {
+  id: string
+  name: string
+  displayName: string
+  description?: string
+  active: boolean
+  sortOrder: number
 }
 
 interface PropertyFormData {
@@ -181,6 +190,7 @@ const Properties: React.FC = () => {
   const { user } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const [properties, setProperties] = useState<Property[]>([])
+  const [inspectionTypes, setInspectionTypes] = useState<InspectionTypeConfig[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -218,7 +228,7 @@ const Properties: React.FC = () => {
   const [editingInspection, setEditingInspection] = useState<Inspection | null>(null)
   const [inspectionFormData, setInspectionFormData] = useState({
     scheduledDate: '',
-    inspectionType: 'WDO' as 'WDO' | 'TERMITE' | 'PEST' | 'MOISTURE' | 'STRUCTURAL' | 'PREVENTIVE',
+    inspectionType: 'FULL_INSPECTION',
     status: 'UNCONTACTED' as 'UNCONTACTED' | 'IN_PROGRESS' | 'SOLD' | 'DECLINED',
     completedDate: '',
     findings: '',
@@ -257,16 +267,26 @@ const Properties: React.FC = () => {
   })
 
   // Sample data states
-  const [isSampleDataLoading, setIsSampleDataLoading] = useState(false)
+  // Removed sample data loading state - moved to Settings page
 
   const canManageProperties = user?.role === 'ADMIN' || user?.role === 'MANAGER'
 
   useEffect(() => {
     fetchProperties()
+    fetchInspectionTypes()
     if (canManageProperties) {
       fetchStats()
     }
   }, [page, searchTerm, propertyTypeFilter])
+
+  const fetchInspectionTypes = async () => {
+    try {
+      const response = await api.get('/settings/inspection-types')
+      setInspectionTypes(response.data.data.inspectionTypes)
+    } catch (error) {
+      console.error('Failed to fetch inspection types:', error)
+    }
+  }
 
   // Handle URL parameter for viewing specific property
   useEffect(() => {
@@ -736,498 +756,7 @@ const Properties: React.FC = () => {
     }
   }
 
-  const handleAddSampleData = async () => {
-    try {
-      setIsSampleDataLoading(true)
-      setError(null)
-      
-      const sampleProperties = [
-        {
-          address: "1234 Maple Street",
-          city: "Atlanta",
-          state: "GA",
-          zipCode: "30309",
-          propertyType: "RESIDENTIAL",
-          description: "Single-family home built in 1995",
-          notes: "Customer reported termite activity in basement"
-        },
-        {
-          address: "5678 Oak Avenue",
-          city: "Marietta", 
-          state: "GA",
-          zipCode: "30060",
-          propertyType: "RESIDENTIAL",
-          description: "Two-story colonial home",
-          notes: "Pre-purchase inspection requested"
-        },
-        {
-          address: "910 Pine Drive",
-          city: "Roswell",
-          state: "GA", 
-          zipCode: "30075",
-          propertyType: "RESIDENTIAL",
-          description: "Ranch style home with deck",
-          notes: "Annual preventive inspection"
-        },
-        {
-          address: "246 Commerce Plaza",
-          city: "Sandy Springs",
-          state: "GA",
-          zipCode: "30328", 
-          propertyType: "COMMERCIAL",
-          description: "Office building complex",
-          notes: "Quarterly commercial inspection"
-        },
-        {
-          address: "135 Industrial Way",
-          city: "Alpharetta",
-          state: "GA",
-          zipCode: "30004",
-          propertyType: "INDUSTRIAL", 
-          description: "Warehouse facility",
-          notes: "Moisture concerns in storage area"
-        },
-        {
-          address: "789 Main Street",
-          city: "Decatur",
-          state: "GA", 
-          zipCode: "30030",
-          propertyType: "MIXED_USE",
-          description: "Mixed-use building with retail and apartments",
-          notes: "Comprehensive WDO inspection needed"
-        },
-        {
-          address: "321 Peachtree Road",
-          city: "Atlanta",
-          state: "GA",
-          zipCode: "30305",
-          propertyType: "RESIDENTIAL",
-          description: "Historic home renovation project", 
-          notes: "Pre-renovation termite inspection"
-        },
-        {
-          address: "654 Technology Drive",
-          city: "Norcross",
-          state: "GA",
-          zipCode: "30071",
-          propertyType: "COMMERCIAL",
-          description: "Tech office building",
-          notes: "Employee reported pest sightings"
-        },
-        {
-          address: "987 Piedmont Avenue",
-          city: "Atlanta",
-          state: "GA",
-          zipCode: "30308",
-          propertyType: "RESIDENTIAL",
-          description: "Luxury condominium unit",
-          notes: "Pre-sale inspection requirement"
-        },
-        {
-          address: "147 Business Center",
-          city: "Dunwoody",
-          state: "GA",
-          zipCode: "30338",
-          propertyType: "COMMERCIAL",
-          description: "Multi-tenant office complex",
-          notes: "Annual maintenance inspection"
-        }
-      ]
-
-      let propertiesAdded = 0
-      const createdProperties: any[] = []
-
-      // Add each sample property
-      for (const property of sampleProperties) {
-        try {
-          const response = await api.post('/properties', property)
-          createdProperties.push(response.data.data.property)
-          propertiesAdded++
-        } catch (error: any) {
-          // Property might already exist, that's ok
-          if (error.response?.status !== 409) {
-            console.error(`Error adding property ${property.address}:`, error)
-          }
-        }
-      }
-
-      // Get users to assign as inspectors and get all properties
-      const [usersResponse, propertiesResponse] = await Promise.all([
-        api.get('/users'),
-        api.get('/properties?limit=100')
-      ])
-      
-      const users = usersResponse.data.data.users
-      const allProperties = propertiesResponse.data.data.properties
-      const currentUserId = user?.id || users[0]?.id
-
-      // Add sample inspections for the properties
-      const sampleInspections = [
-        {
-          propertyAddress: "1234 Maple Street",
-          inspectionType: "TERMITE",
-          scheduledDate: "2024-06-10T09:00:00.000Z",
-          completedDate: "2024-06-11T14:30:00.000Z",
-          findings: "Active termite infestation found in basement support beams. Moisture damage evident around foundation.",
-          recommendations: "Immediate termite treatment required. Repair moisture issues and replace damaged wood.",
-          cost: 350.00,
-          status: "SOLD"
-        },
-        {
-          propertyAddress: "5678 Oak Avenue",
-          inspectionType: "WDO",
-          scheduledDate: "2024-06-15T10:30:00.000Z",
-          completedDate: "2024-06-15T12:45:00.000Z",
-          findings: "No active WDO activity detected. Previous termite damage found in garage area, appears treated.",
-          recommendations: "Property suitable for purchase. Consider annual preventive treatment.",
-          cost: 275.00,
-          status: "SOLD"
-        },
-        {
-          propertyAddress: "910 Pine Drive",
-          inspectionType: "PREVENTIVE",
-          scheduledDate: "2024-06-20T14:00:00.000Z",
-          completedDate: "2024-06-20T15:30:00.000Z",
-          findings: "Minor carpenter ant activity in deck area. No termite activity detected.",
-          recommendations: "Localized ant treatment applied. Remove wood debris near deck.",
-          cost: 125.00,
-          status: "SOLD"
-        },
-        {
-          propertyAddress: "246 Commerce Plaza",
-          inspectionType: "PEST",
-          scheduledDate: "2024-06-25T11:00:00.000Z",
-          findings: "Multiple entry points found. Evidence of rodent activity in storage areas.",
-          recommendations: "Seal entry points. Install monitoring stations. Quarterly follow-up recommended.",
-          cost: 450.00,
-          status: "IN_PROGRESS"
-        },
-        {
-          propertyAddress: "135 Industrial Way",
-          inspectionType: "MOISTURE",
-          scheduledDate: "2024-06-18T08:30:00.000Z",
-          completedDate: "2024-06-18T11:00:00.000Z",
-          findings: "High moisture levels detected in northeast corner. Conducive conditions for termites.",
-          recommendations: "Address moisture source immediately. Install dehumidification system.",
-          cost: 200.00,
-          status: "SOLD"
-        },
-        {
-          propertyAddress: "789 Main Street",
-          inspectionType: "WDO",
-          scheduledDate: "2024-06-22T13:00:00.000Z",
-          findings: "Comprehensive inspection in progress. Initial findings suggest no active infestation.",
-          recommendations: "Awaiting final results. Preventive treatment may be recommended.",
-          status: "UNCONTACTED"
-        }
-      ]
-
-      let inspectionsAdded = 0
-      const createdInspections: any[] = []
-
-      for (const inspectionData of sampleInspections) {
-        const property = allProperties.find((p: any) => p.address === inspectionData.propertyAddress)
-        if (property) {
-          try {
-            const inspectionPayload: any = {
-              propertyId: property.id,
-              inspectorId: currentUserId,
-              inspectionType: inspectionData.inspectionType,
-              scheduledDate: inspectionData.scheduledDate,
-              status: inspectionData.status
-            }
-
-            if (inspectionData.completedDate) {
-              inspectionPayload.completedDate = inspectionData.completedDate
-            }
-            if (inspectionData.findings) {
-              inspectionPayload.findings = inspectionData.findings
-            }
-            if (inspectionData.recommendations) {
-              inspectionPayload.recommendations = inspectionData.recommendations
-            }
-            if (inspectionData.cost) {
-              inspectionPayload.cost = inspectionData.cost
-            }
-
-            const response = await api.post('/inspections', inspectionPayload)
-            createdInspections.push(response.data.data.inspection)
-            inspectionsAdded++
-          } catch (error: any) {
-            console.error(`Error adding inspection for ${inspectionData.propertyAddress}:`, error)
-          }
-        }
-      }
-
-      // Add sample calls for some properties
-      const sampleCalls = [
-        {
-          propertyAddress: "1234 Maple Street",
-          contactName: "John Smith",
-          contactPhone: "(404) 555-0101",
-          callType: "OUTBOUND",
-          purpose: "INITIAL_CONTACT",
-          outcome: "ANSWERED",
-          duration: 15,
-          notes: "Customer reported termite activity in basement. Scheduled inspection for next week.",
-          completed: true
-        },
-        {
-          propertyAddress: "1234 Maple Street",
-          contactName: "John Smith",
-          contactPhone: "(404) 555-0101",
-          callType: "OUTBOUND",
-          purpose: "FOLLOW_UP",
-          outcome: "ANSWERED",
-          duration: 8,
-          notes: "Confirmed inspection findings. Customer approved treatment plan.",
-          completed: true
-        },
-        {
-          propertyAddress: "5678 Oak Avenue",
-          contactName: "Sarah Johnson",
-          contactPhone: "(770) 555-0202",
-          callType: "INBOUND",
-          purpose: "SCHEDULING",
-          outcome: "SCHEDULED",
-          duration: 12,
-          notes: "Real estate agent called to schedule pre-purchase inspection.",
-          completed: true
-        },
-        {
-          propertyAddress: "910 Pine Drive",
-          contactName: "Mike Wilson",
-          contactPhone: "(678) 555-0303",
-          callType: "OUTBOUND",
-          purpose: "CONFIRMATION",
-          outcome: "VOICEMAIL",
-          duration: 2,
-          notes: "Left voicemail confirming tomorrow's preventive inspection appointment.",
-          completed: true
-        },
-        {
-          propertyAddress: "246 Commerce Plaza",
-          contactName: "Lisa Chen",
-          contactPhone: "(404) 555-0404",
-          callType: "OUTBOUND",
-          purpose: "REPORT_DELIVERY",
-          outcome: "ANSWERED",
-          duration: 20,
-          notes: "Discussed inspection findings with property manager. Explained recommended actions.",
-          completed: true
-        },
-        {
-          propertyAddress: "789 Main Street",
-          contactName: "David Brown",
-          contactPhone: "(770) 555-0505",
-          callType: "OUTBOUND",
-          purpose: "INITIAL_CONTACT",
-          outcome: "NO_ANSWER",
-          notes: "No answer. Will try again tomorrow.",
-          completed: false,
-          reminderDate: "2024-06-23T09:00:00.000Z"
-        }
-      ]
-
-      let callsAdded = 0
-
-      for (const callData of sampleCalls) {
-        const property = allProperties.find((p: any) => p.address === callData.propertyAddress)
-        if (property) {
-          try {
-            const callPayload: any = {
-              propertyId: property.id,
-              contactName: callData.contactName,
-              contactPhone: callData.contactPhone,
-              callType: callData.callType,
-              purpose: callData.purpose,
-              outcome: callData.outcome,
-              completed: callData.completed
-            }
-
-            if (callData.duration) callPayload.duration = callData.duration
-            if (callData.notes) callPayload.notes = callData.notes
-            if (callData.reminderDate) callPayload.reminderDate = callData.reminderDate
-
-            // Try to link to inspection if applicable
-            const linkedInspection = createdInspections.find(inspection => 
-              inspection.propertyId === property.id
-            )
-            if (linkedInspection && ['CONFIRMATION', 'FOLLOW_UP', 'REPORT_DELIVERY'].includes(callData.purpose)) {
-              callPayload.inspectionId = linkedInspection.id
-            }
-
-            await api.post('/calls', callPayload)
-            callsAdded++
-          } catch (error: any) {
-            console.error(`Error adding call for ${callData.propertyAddress}:`, error)
-          }
-        }
-      }
-
-      // Add sample contacts for some properties
-      const sampleContacts = [
-        {
-          propertyAddress: "1234 Maple Street",
-          name: "John Smith",
-          phone: "(404) 555-0101",
-          email: "john.smith@email.com",
-          role: "Homeowner",
-          isPrimary: true,
-          notes: "Prefers morning appointments. Has basement access concerns."
-        },
-        {
-          propertyAddress: "5678 Oak Avenue",
-          name: "Sarah Johnson",
-          phone: "(770) 555-0202",
-          email: "sarah.j@realty.com",
-          role: "Real Estate Agent",
-          isPrimary: true,
-          notes: "Representing buyer. Fast closing timeline."
-        },
-        {
-          propertyAddress: "5678 Oak Avenue",
-          name: "Tom Miller",
-          phone: "(404) 555-0606",
-          email: "tom.miller@email.com",
-          role: "Buyer",
-          isPrimary: false,
-          notes: "First-time home buyer. Needs detailed explanation of findings."
-        },
-        {
-          propertyAddress: "910 Pine Drive",
-          name: "Mike Wilson",
-          phone: "(678) 555-0303",
-          email: "mike.w@email.com",
-          role: "Homeowner",
-          isPrimary: true,
-          notes: "Long-time customer. Annual service agreement."
-        },
-        {
-          propertyAddress: "246 Commerce Plaza",
-          name: "Lisa Chen",
-          phone: "(404) 555-0404",
-          email: "lisa.chen@bizprop.com",
-          role: "Property Manager",
-          isPrimary: true,
-          notes: "Manages multiple properties. Prefers email communication for reports."
-        },
-        {
-          propertyAddress: "789 Main Street",
-          name: "David Brown",
-          phone: "(770) 555-0505",
-          email: "david.brown@email.com",
-          role: "Building Owner",
-          isPrimary: true,
-          notes: "Owns several commercial properties in the area."
-        }
-      ]
-
-      let contactsAdded = 0
-
-      for (const contactData of sampleContacts) {
-        const property = allProperties.find((p: any) => p.address === contactData.propertyAddress)
-        if (property) {
-          try {
-            await api.post('/contacts', {
-              propertyId: property.id,
-              name: contactData.name,
-              phone: contactData.phone,
-              email: contactData.email,
-              role: contactData.role,
-              isPrimary: contactData.isPrimary,
-              notes: contactData.notes
-            })
-            contactsAdded++
-          } catch (error: any) {
-            console.error(`Error adding contact for ${contactData.propertyAddress}:`, error)
-          }
-        }
-      }
-
-      setSuccess(`Successfully added ${propertiesAdded} properties, ${inspectionsAdded} inspections, ${callsAdded} calls, and ${contactsAdded} contacts`)
-      fetchProperties()
-      if (canManageProperties) {
-        fetchStats()
-      }
-    } catch (error: any) {
-      setError('Failed to add sample data')
-    } finally {
-      setIsSampleDataLoading(false)
-    }
-  }
-
-  const handleRemoveSampleData = async () => {
-    try {
-      setIsSampleDataLoading(true)
-      setError(null)
-      
-      // Get all properties to find sample ones
-      const response = await api.get('/properties?limit=100')
-      const allProperties = response.data.data.properties
-      
-      // Sample property addresses to identify and remove
-      const sampleAddresses = [
-        "1234 Maple Street",
-        "5678 Oak Avenue", 
-        "910 Pine Drive",
-        "246 Commerce Plaza",
-        "135 Industrial Way",
-        "789 Main Street",
-        "321 Peachtree Road",
-        "654 Technology Drive",
-        "987 Piedmont Avenue",
-        "147 Business Center"
-      ]
-      
-      const samplesToRemove = allProperties.filter((property: Property) => 
-        sampleAddresses.includes(property.address)
-      )
-      
-      if (samplesToRemove.length === 0) {
-        setError('No sample properties found to remove')
-        return
-      }
-      
-      let propertiesRemoved = 0
-      let inspectionsRemoved = 0
-      
-      // Remove inspections first, then properties
-      for (const property of samplesToRemove) {
-        try {
-          // Get inspections for this property
-          const inspectionsResponse = await api.get(`/inspections?propertyId=${property.id}`)
-          const inspections = inspectionsResponse.data.data.inspections
-          
-          // Remove inspections
-          for (const inspection of inspections) {
-            try {
-              await api.delete(`/inspections/${inspection.id}`)
-              inspectionsRemoved++
-            } catch (error: any) {
-              console.warn(`Could not delete inspection ${inspection.id}:`, error.response?.data?.message)
-            }
-          }
-          
-          // Remove property
-          await api.delete(`/properties/${property.id}`)
-          propertiesRemoved++
-        } catch (error: any) {
-          console.warn(`Could not delete property ${property.address}:`, error.response?.data?.message)
-        }
-      }
-
-      setSuccess(`Removed ${propertiesRemoved} properties and ${inspectionsRemoved} inspections`)
-      fetchProperties()
-      if (canManageProperties) {
-        fetchStats()
-      }
-    } catch (error: any) {
-      setError('Failed to remove sample data')
-    } finally {
-      setIsSampleDataLoading(false)
-    }
-  }
+  // Sample data management functions removed - now available in Settings page
 
   if (loading && properties.length === 0) {
     return (
@@ -1245,33 +774,13 @@ const Properties: React.FC = () => {
         </Typography>
         <Box>
           {canManageProperties && (
-            <>
-              <Button
-                variant="outlined"
-                color="secondary"
-                onClick={handleRemoveSampleData}
-                disabled={isSampleDataLoading}
-                sx={{ mr: 1 }}
-              >
-                {isSampleDataLoading ? <CircularProgress size={20} /> : 'Remove Sample Data'}
-              </Button>
-              <Button
-                variant="outlined"
-                color="primary"
-                onClick={handleAddSampleData}
-                disabled={isSampleDataLoading}
-                sx={{ mr: 2 }}
-              >
-                {isSampleDataLoading ? <CircularProgress size={20} /> : 'Add Sample Data'}
-              </Button>
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                onClick={handleCreateProperty}
-              >
-                Add Property
-              </Button>
-            </>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={handleCreateProperty}
+            >
+              Add Property
+            </Button>
           )}
         </Box>
       </Box>
@@ -2558,12 +2067,11 @@ const Properties: React.FC = () => {
                     label="Inspection Type"
                     onChange={(e) => setInspectionFormData({ ...inspectionFormData, inspectionType: e.target.value as any })}
                   >
-                    <MenuItem value="WDO">WDO (Wood Destroying Organism)</MenuItem>
-                    <MenuItem value="TERMITE">Termite</MenuItem>
-                    <MenuItem value="PEST">Pest</MenuItem>
-                    <MenuItem value="MOISTURE">Moisture</MenuItem>
-                    <MenuItem value="STRUCTURAL">Structural</MenuItem>
-                    <MenuItem value="PREVENTIVE">Preventive</MenuItem>
+                    {inspectionTypes.map((type) => (
+                      <MenuItem key={type.id} value={type.name}>
+                        {type.displayName}
+                      </MenuItem>
+                    ))}
                   </Select>
                 </FormControl>
               </Grid>

@@ -33,7 +33,7 @@ model User {
 
 model Property {
   id          String   @id @default(cuid())
-  address     String
+  address     String   @unique
   city        String
   state       String
   zipCode     String
@@ -60,7 +60,7 @@ model Inspection {
   scheduledDate     DateTime
   completedDate     DateTime?
   status            InspectionStatus @default(UNCONTACTED)
-  inspectionType    InspectionType   @default(WDO)
+  inspectionType    InspectionType   @default(FULL_INSPECTION)
   findings          String?
   recommendations   String?
   cost              Float?
@@ -121,6 +121,19 @@ model Contact {
   @@map("contacts")
 }
 
+model InspectionTypeConfig {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  displayName String
+  description String?
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("inspection_type_configs")
+}
+
 enum Role {
   ADMIN
   MANAGER
@@ -143,12 +156,10 @@ enum InspectionStatus {
 }
 
 enum InspectionType {
-  WDO
-  TERMITE
-  PEST
-  MOISTURE
-  STRUCTURAL
-  PREVENTIVE
+  FULL_INSPECTION
+  LIMITED_INSPECTION
+  RE_INSPECTION
+  EXCLUSION
 }
 
 enum CallType {

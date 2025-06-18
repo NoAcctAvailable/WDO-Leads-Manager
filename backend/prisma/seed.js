@@ -6,25 +6,72 @@ const prisma = new PrismaClient()
 async function main() {
   console.log('🌱 Starting database seeding...')
 
-  // Update existing admin user with employee ID if not set
+  // Create default inspection type configurations
+  console.log('🔧 Setting up inspection type configurations...')
+  const inspectionTypes = [
+    {
+      name: 'FULL_INSPECTION',
+      displayName: 'Full Inspection',
+      description: 'Complete wood destroying organism inspection of all accessible areas',
+      sortOrder: 1
+    },
+    {
+      name: 'LIMITED_INSPECTION',
+      displayName: 'Limited Inspection',
+      description: 'Inspection of specific areas or structures only',
+      sortOrder: 2
+    },
+    {
+      name: 'RE_INSPECTION',
+      displayName: 'Re-Inspection',
+      description: 'Follow-up inspection after treatment or repairs',
+      sortOrder: 3
+    },
+    {
+      name: 'EXCLUSION',
+      displayName: 'Exclusion',
+      description: 'Inspection to identify and exclude pest entry points',
+      sortOrder: 4
+    }
+  ]
+
+  for (const typeData of inspectionTypes) {
+    try {
+      const existingType = await prisma.inspectionTypeConfig.findUnique({
+        where: { name: typeData.name }
+      })
+
+      if (!existingType) {
+        await prisma.inspectionTypeConfig.create({
+          data: typeData
+        })
+        console.log(`  ✅ Created inspection type: ${typeData.displayName}`)
+      } else {
+        console.log(`  ⏭️  Inspection type already exists: ${existingType.displayName}`)
+      }
+    } catch (error) {
+      console.error(`  ❌ Error creating inspection type ${typeData.name}:`, error.message)
+    }
+  }
+
+  // Check for admin user (but continue with seeding regardless)
   const adminUser = await prisma.user.findFirst({
     where: { role: 'ADMIN' }
   })
 
   if (!adminUser) {
-    console.log('❌ No admin user found. Please create an admin user first.')
-    return
-  }
-
-  // Set employee ID for admin if not already set
-  if (!adminUser.employeeId) {
+    console.log('⚠️  No admin user found. Some data may not be seeded.')
+  } else {
+    // Set employee ID for admin if not already set
+    if (!adminUser.employeeId) {
     await prisma.user.update({
       where: { id: adminUser.id },
       data: { employeeId: '801' } // Set your employee ID here
     })
     console.log(`👤 Updated admin user ${adminUser.firstName} ${adminUser.lastName} with employee ID: 801`)
-  } else {
-    console.log(`👤 Using admin user: ${adminUser.firstName} ${adminUser.lastName} (Employee ID: ${adminUser.employeeId})`)
+    } else {
+      console.log(`👤 Using admin user: ${adminUser.firstName} ${adminUser.lastName} (Employee ID: ${adminUser.employeeId})`)
+    }
   }
 
   // Create additional sample users with employee IDs if they don't exist

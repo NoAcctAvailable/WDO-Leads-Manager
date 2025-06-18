@@ -42,6 +42,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
     { text: 'Properties', icon: <Home />, path: '/properties' },
     { text: 'Inspections', icon: <Assignment />, path: '/inspections' },
+    { text: 'Settings', icon: <Settings />, path: '/settings' },
   ]
 
   if (user && (user.role === 'ADMIN' || user.role === 'MANAGER')) {
@@ -97,12 +98,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <Person fontSize="small" />
               </ListItemIcon>
               Profile
-            </MenuItem>
-            <MenuItem onClick={() => { navigate('/settings'); handleCloseProfileMenu() }}>
-              <ListItemIcon>
-                <Settings fontSize="small" />
-              </ListItemIcon>
-              Settings
             </MenuItem>
             <MenuItem onClick={handleLogout}>
               <ListItemIcon>

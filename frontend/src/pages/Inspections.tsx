@@ -56,12 +56,21 @@ import {
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
 
+interface InspectionTypeConfig {
+  id: string
+  name: string
+  displayName: string
+  description?: string
+  active: boolean
+  sortOrder: number
+}
+
 interface Inspection {
   id: string
   scheduledDate: string
   completedDate?: string
   status: 'UNCONTACTED' | 'IN_PROGRESS' | 'SOLD' | 'DECLINED'
-  inspectionType: 'WDO' | 'TERMITE' | 'PEST' | 'MOISTURE' | 'STRUCTURAL' | 'PREVENTIVE'
+  inspectionType: string
   findings?: string
   recommendations?: string
   cost?: number
@@ -113,7 +122,7 @@ interface InspectionFormData {
   propertyId: string
   inspectorId: string
   scheduledDate: string
-  inspectionType: 'WDO' | 'TERMITE' | 'PEST' | 'MOISTURE' | 'STRUCTURAL' | 'PREVENTIVE'
+  inspectionType: string
   status: 'UNCONTACTED' | 'IN_PROGRESS' | 'SOLD' | 'DECLINED'
   completedDate: string
   findings: string
@@ -159,21 +168,12 @@ const statusColors = {
   DECLINED: 'error'
 } as const
 
-// Inspection type colors
-const inspectionTypeColors = {
-  WDO: 'primary',
-  TERMITE: 'error',
-  PEST: 'warning',
-  MOISTURE: 'info',
-  STRUCTURAL: 'secondary',
-  PREVENTIVE: 'success'
-} as const
-
 const Inspections: React.FC = () => {
   const { user } = useAuth()
   const [inspections, setInspections] = useState<Inspection[]>([])
   const [properties, setProperties] = useState<Property[]>([])
   const [inspectors, setInspectors] = useState<User[]>([])
+  const [inspectionTypes, setInspectionTypes] = useState<InspectionTypeConfig[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -196,7 +196,7 @@ const Inspections: React.FC = () => {
     propertyId: '',
     inspectorId: '',
     scheduledDate: '',
-    inspectionType: 'WDO',
+    inspectionType: 'FULL_INSPECTION',
     status: 'UNCONTACTED',
     completedDate: '',
     findings: '',
@@ -257,12 +257,14 @@ const Inspections: React.FC = () => {
 
   const fetchPropertiesAndInspectors = async () => {
     try {
-      const [propertiesResponse, usersResponse] = await Promise.all([
+      const [propertiesResponse, usersResponse, typesResponse] = await Promise.all([
         api.get('/properties?limit=100'),
-        api.get('/users?limit=100')
+        api.get('/users?limit=100'),
+        api.get('/settings/inspection-types')
       ])
       
       setProperties(propertiesResponse.data.data.properties)
+      setInspectionTypes(typesResponse.data.data.inspectionTypes)
       
       // Filter users to only show inspectors, managers, and admins
       const availableInspectors = usersResponse.data.data.users.filter((u: User) => 
@@ -270,8 +272,21 @@ const Inspections: React.FC = () => {
       )
       setInspectors(availableInspectors)
     } catch (error) {
-      console.error('Failed to fetch properties and inspectors:', error)
+      console.error('Failed to fetch properties, inspectors, and types:', error)
     }
+  }
+
+  // Helper function to get inspection type display name
+  const getInspectionTypeDisplay = (typeName: string) => {
+    const type = inspectionTypes.find(t => t.name === typeName)
+    return type ? type.displayName : typeName
+  }
+
+  // Helper function to get inspection type color (cycling through available colors)
+  const getInspectionTypeColor = (typeName: string) => {
+    const colors = ['primary', 'secondary', 'success', 'warning', 'info', 'error'] as const
+    const typeIndex = inspectionTypes.findIndex(t => t.name === typeName)
+    return colors[typeIndex % colors.length] || 'primary'
   }
 
   const handleSearch = () => {
@@ -287,7 +302,7 @@ const Inspections: React.FC = () => {
       propertyId: '',
       inspectorId: user?.role === 'INSPECTOR' ? user.id : '',
       scheduledDate: '',
-      inspectionType: 'WDO',
+      inspectionType: 'FULL_INSPECTION',
       status: 'UNCONTACTED',
       completedDate: '',
       findings: '',
@@ -520,12 +535,11 @@ const Inspections: React.FC = () => {
                 onChange={(e) => setTypeFilter(e.target.value)}
               >
                 <MenuItem value="">All Types</MenuItem>
-                <MenuItem value="WDO">WDO</MenuItem>
-                <MenuItem value="TERMITE">Termite</MenuItem>
-                <MenuItem value="PEST">Pest</MenuItem>
-                <MenuItem value="MOISTURE">Moisture</MenuItem>
-                <MenuItem value="STRUCTURAL">Structural</MenuItem>
-                <MenuItem value="PREVENTIVE">Preventive</MenuItem>
+                {inspectionTypes.map((type) => (
+                  <MenuItem key={type.id} value={type.name}>
+                    {type.displayName}
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
           </Grid>
@@ -597,8 +611,8 @@ const Inspections: React.FC = () => {
                 </TableCell>
                 <TableCell>
                   <Chip
-                    label={inspection.inspectionType}
-                    color={inspectionTypeColors[inspection.inspectionType]}
+                    label={getInspectionTypeDisplay(inspection.inspectionType)}
+                    color={getInspectionTypeColor(inspection.inspectionType)}
                     size="small"
                   />
                 </TableCell>
@@ -715,7 +729,7 @@ const Inspections: React.FC = () => {
                       <MuiBox display="flex" alignItems="center" gap={2} mb={2}>
                         <Avatar 
                           sx={{ 
-                            bgcolor: `${inspectionTypeColors[selectedInspection.inspectionType]}.main`,
+                            bgcolor: `${getInspectionTypeColor(selectedInspection.inspectionType)}.main`,
                             width: 56,
                             height: 56
                           }}
@@ -724,7 +738,7 @@ const Inspections: React.FC = () => {
                         </Avatar>
                         <MuiBox>
                           <Typography variant="h5" fontWeight="600" gutterBottom>
-                            {selectedInspection.inspectionType} Inspection
+                            {getInspectionTypeDisplay(selectedInspection.inspectionType)}
                           </Typography>
                           <MuiBox display="flex" alignItems="center" gap={1} mb={1}>
                             <LocationIcon color="action" fontSize="small" />
@@ -963,12 +977,11 @@ const Inspections: React.FC = () => {
                       label="Inspection Type"
                       onChange={(e) => setFormData({ ...formData, inspectionType: e.target.value as any })}
                     >
-                      <MenuItem value="WDO">WDO</MenuItem>
-                      <MenuItem value="TERMITE">Termite</MenuItem>
-                      <MenuItem value="PEST">Pest</MenuItem>
-                      <MenuItem value="MOISTURE">Moisture</MenuItem>
-                      <MenuItem value="STRUCTURAL">Structural</MenuItem>
-                      <MenuItem value="PREVENTIVE">Preventive</MenuItem>
+                      {inspectionTypes.map((type) => (
+                        <MenuItem key={type.id} value={type.name}>
+                          {type.displayName}
+                        </MenuItem>
+                      ))}
                     </Select>
                   </FormControl>
                 </Grid>

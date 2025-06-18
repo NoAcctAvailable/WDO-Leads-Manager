@@ -13,6 +13,7 @@ import propertyRoutes from './routes/properties';
 import inspectionRoutes from './routes/inspections';
 import callRoutes from './routes/calls';
 import contactRoutes from './routes/contacts';
+import settingsRoutes from './routes/settings';
 
 // Import middleware
 import { errorHandler } from './middleware/errorHandler';
@@ -107,6 +108,7 @@ app.use('/api/properties', propertyRoutes);
 app.use('/api/inspections', inspectionRoutes);
 app.use('/api/calls', callRoutes);
 app.use('/api/contacts', contactRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // Security headers for API responses
 app.use('/api/*', (req, res, next) => {
