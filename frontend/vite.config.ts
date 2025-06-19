@@ -17,36 +17,43 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
-    chunkSizeWarningLimit: 2000,
-    target: 'es2020',
+    chunkSizeWarningLimit: 5000,
+    target: 'es2015',
+    minify: 'esbuild',
+    cssCodeSplit: true,
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          'vendor-mui': ['@mui/material', '@mui/icons-material', '@emotion/react', '@emotion/styled'],
-          'vendor-utils': ['axios', 'date-fns', 'react-query']
+        manualChunks: (id) => {
+          if (id.includes('node_modules')) {
+            if (id.includes('react') || id.includes('react-dom')) {
+              return 'vendor-react';
+            }
+            if (id.includes('@mui')) {
+              return 'vendor-mui';
+            }
+            return 'vendor';
+          }
         }
       }
-    },
-    minify: 'esbuild',
-    cssCodeSplit: false
+    }
   },
   optimizeDeps: {
     include: [
       'react',
       'react-dom',
       'react-router-dom',
-      '@mui/material',
-      '@mui/icons-material',
-      'axios',
-      'date-fns',
-      'react-query'
-    ]
+      'axios'
+    ],
+    exclude: ['@mui/material', '@mui/icons-material']
   },
   define: {
     global: 'globalThis',
   },
   esbuild: {
-    target: 'es2020'
+    target: 'es2015',
+    keepNames: false,
+    minifyIdentifiers: true,
+    minifySyntax: true,
+    minifyWhitespace: true
   }
 }) 

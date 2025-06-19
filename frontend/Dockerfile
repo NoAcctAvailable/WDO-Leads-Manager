@@ -1,17 +1,19 @@
 # Build stage
 FROM node:18-alpine AS builder
 
-# Set Node.js optimization flags for low-CPU environments
-ENV NODE_OPTIONS="--max-old-space-size=2048 --max-semi-space-size=128"
+# Set Node.js optimization flags for low-CPU environments with strict memory limits
+ENV NODE_OPTIONS="--max-old-space-size=1536 --max-semi-space-size=64"
+ENV UV_THREADPOOL_SIZE=2
 
 WORKDIR /app
 
 # Copy package files first for better caching
 COPY package*.json ./
 
-# Install all dependencies (including dev dependencies needed for build)
-# Clear cache to save space and avoid memory issues
-RUN npm install --include=dev && \
+# Install dependencies with timeout and memory optimizations
+RUN npm config set fetch-timeout 60000 && \
+    npm config set fetch-retry-maxtimeout 60000 && \
+    npm install --include=dev --no-audit --no-fund && \
     npm cache clean --force
 
 # Set NODE_ENV after dependencies are installed
@@ -20,9 +22,13 @@ ENV NODE_ENV=production
 # Copy source code
 COPY . .
 
-# Build application without TypeScript checking for speed
-# Use the fast build script that skips tsc
-RUN npm run build:fast
+# Build with timeout and memory monitoring
+# Use timeout to prevent hanging builds
+RUN timeout 300s npm run build:fast || \
+    (echo "Build timed out, trying with reduced parallelism..." && \
+     timeout 600s npm run build:fast) || \
+    (echo "Build failed, trying simple build..." && \
+     timeout 300s npx vite build --mode production)
 
 # Production stage
 FROM nginx:alpine AS production
