@@ -108,27 +108,6 @@ export const propertiesApi = {
     api.get('/properties/stats/overview'),
 }
 
-// Leads API
-export const leadsApi = {
-  getAll: (params?: any): Promise<AxiosResponse<PaginatedResponse<any>>> =>
-    api.get('/leads', { params }),
-  
-  getById: (id: string): Promise<AxiosResponse<ApiResponse>> =>
-    api.get(`/leads/${id}`),
-  
-  create: (data: any): Promise<AxiosResponse<ApiResponse>> =>
-    api.post('/leads', data),
-  
-  update: (id: string, data: any): Promise<AxiosResponse<ApiResponse>> =>
-    api.put(`/leads/${id}`, data),
-  
-  delete: (id: string): Promise<AxiosResponse<ApiResponse>> =>
-    api.delete(`/leads/${id}`),
-  
-  getStats: (): Promise<AxiosResponse<ApiResponse>> =>
-    api.get('/leads/stats/overview'),
-}
-
 // Inspections API
 export const inspectionsApi = {
   getAll: (params?: any): Promise<AxiosResponse<PaginatedResponse<any>>> =>
