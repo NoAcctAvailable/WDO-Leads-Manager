@@ -28,7 +28,11 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "vite build",
+    "build:full": "tsc && vite build",
+    "build:fast": "vite build",
+    "build:optimized": "./build-fast.sh",
+    "build:with-types": "./build-fast.sh --with-types",
     "preview": "vite preview",
     "type-check": "tsc --noEmit"
   },

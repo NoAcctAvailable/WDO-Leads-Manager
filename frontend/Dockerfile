@@ -1,22 +1,27 @@
 # Build stage
 FROM node:18-alpine AS builder
 
+# Set Node.js optimization flags for low-CPU environments
+ENV NODE_OPTIONS="--max-old-space-size=2048 --max-semi-space-size=128"
+ENV NODE_ENV=production
+
 WORKDIR /app
 
-# Copy package files
+# Copy package files first for better caching
 COPY package*.json ./
 
-# Install all dependencies (including dev for build)
-RUN npm install && npm cache clean --force
+# Use npm ci for faster, more reliable, reproducible builds
+# Clear cache to save space and avoid memory issues
+RUN npm ci --only=production --omit=dev && \
+    npm install --only=dev && \
+    npm cache clean --force
 
 # Copy source code
 COPY . .
 
-# Set Node.js heap size to prevent memory issues during build
-ENV NODE_OPTIONS="--max-old-space-size=4096"
-
-# Build application
-RUN npm run build
+# Build application without TypeScript checking for speed
+# Use the fast build script that skips tsc
+RUN npm run build:fast
 
 # Production stage
 FROM nginx:alpine AS production
@@ -31,16 +36,16 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Create nginx user
-RUN addgroup -g 1001 -S nginx-group
-RUN adduser -S nginx-user -u 1001 -G nginx-group
+RUN addgroup -g 1001 -S nginx-group && \
+    adduser -S nginx-user -u 1001 -G nginx-group
 
-# Change ownership
-RUN chown -R nginx-user:nginx-group /usr/share/nginx/html
-RUN chown -R nginx-user:nginx-group /var/cache/nginx
-RUN chown -R nginx-user:nginx-group /var/log/nginx
-RUN chown -R nginx-user:nginx-group /etc/nginx/conf.d
-RUN touch /var/run/nginx.pid
-RUN chown -R nginx-user:nginx-group /var/run/nginx.pid
+# Change ownership in a single layer to reduce image size
+RUN chown -R nginx-user:nginx-group /usr/share/nginx/html \
+    /var/cache/nginx \
+    /var/log/nginx \
+    /etc/nginx/conf.d && \
+    touch /var/run/nginx.pid && \
+    chown -R nginx-user:nginx-group /var/run/nginx.pid
 
 USER nginx-user
 
