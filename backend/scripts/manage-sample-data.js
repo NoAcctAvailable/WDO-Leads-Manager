@@ -612,13 +612,13 @@ async function removeSampleCalls() {
     
     // Get all sample property addresses
     const sampleAddresses = sampleProperties.map(p => p.address);
-    
+
     // Find all properties that match sample addresses
     const properties = await prisma.property.findMany({
-      where: { 
+        where: { 
         address: { in: sampleAddresses }
-      }
-    });
+        }
+      });
 
     if (properties.length === 0) {
       console.log('⏭️  No sample properties found');
@@ -629,10 +629,10 @@ async function removeSampleCalls() {
 
     // Remove all calls for sample properties
     const deletedCalls = await prisma.call.deleteMany({
-      where: {
+        where: { 
         propertyId: { in: propertyIds }
-      }
-    });
+        }
+      });
 
     console.log(`\n📊 Summary:`);
     console.log(`   • Removed: ${deletedCalls.count} calls from sample properties`);
@@ -649,13 +649,13 @@ async function removeSampleInspections() {
     
     // Get all sample property addresses
     const sampleAddresses = sampleProperties.map(p => p.address);
-    
+
     // Find all properties that match sample addresses
     const properties = await prisma.property.findMany({
-      where: { 
+        where: { 
         address: { in: sampleAddresses }
-      }
-    });
+        }
+      });
 
     if (properties.length === 0) {
       console.log('⏭️  No sample properties found');
@@ -666,7 +666,7 @@ async function removeSampleInspections() {
 
     // Remove all inspections for sample properties
     const deletedInspections = await prisma.inspection.deleteMany({
-      where: {
+        where: { 
         propertyId: { in: propertyIds }
       }
     });
@@ -691,20 +691,20 @@ async function removeSampleProperties() {
       where: { 
         address: { in: sampleAddresses }
       },
-      include: {
-        _count: {
-          select: {
-            calls: true,
-            inspections: true
+        include: {
+          _count: {
+            select: {
+              calls: true,
+              inspections: true
+            }
           }
         }
-      }
-    });
+      });
 
     if (properties.length === 0) {
       console.log('⏭️  No sample properties found');
       return;
-    }
+      }
 
     // Filter properties that can be safely deleted (no dependent data)
     const safeToDelete = properties.filter(p => p._count.calls === 0 && p._count.inspections === 0);
@@ -718,7 +718,7 @@ async function removeSampleProperties() {
           id: { in: propertyIds }
         }
       });
-      
+
       console.log(`✅ Removed ${deletedProperties.count} properties`);
       safeToDelete.forEach(p => console.log(`   • ${p.address}`));
     }
@@ -805,7 +805,7 @@ async function showStatus() {
                 const statusIcon = inspection.status === 'SOLD' ? '✅' :
                          inspection.status === 'IN_PROGRESS' ? '🔄' : 
                          inspection.status === 'DECLINED' ? '❌' : '📅';
-      console.log(`       ${statusIcon} ${inspection.inspectionType} - ${inspection.status} (${inspection.scheduledDate.toDateString()})`);
+          console.log(`       ${statusIcon} ${inspection.inspectionType} - ${inspection.status} (${inspection.scheduledDate.toDateString()})`);
         });
       }
     });

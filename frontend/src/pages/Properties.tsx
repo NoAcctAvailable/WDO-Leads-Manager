@@ -774,13 +774,13 @@ const Properties: React.FC = () => {
         </Typography>
         <Box>
           {canManageProperties && (
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={handleCreateProperty}
-            >
-              Add Property
-            </Button>
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={handleCreateProperty}
+              >
+                Add Property
+              </Button>
           )}
         </Box>
       </Box>

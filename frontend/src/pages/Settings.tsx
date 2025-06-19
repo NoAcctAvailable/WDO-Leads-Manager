@@ -279,7 +279,7 @@ const Settings: React.FC = () => {
           <TabPanel value={tabValue} index={0}>
             <Grid container spacing={3}>
               <Grid item xs={12}>
-                <Typography variant="h6" gutterBottom>
+            <Typography variant="h6" gutterBottom>
                   Sample Data Management
                 </Typography>
                 <Typography variant="body2" color="text.secondary" paragraph>
@@ -319,7 +319,7 @@ const Settings: React.FC = () => {
                             color={sampleDataStatus.calls.current > 0 ? "success" : "default"}
                             size="small"
                           />
-                        </Box>
+              </Box>
                       </Stack>
                     ) : (
                       <Typography variant="body2" color="text.secondary">
@@ -447,13 +447,13 @@ const Settings: React.FC = () => {
                             variant="outlined"
                             sx={{ fontFamily: 'monospace' }}
                           />
-                        </Box>
+              </Box>
                         <Chip 
                           label="Active" 
                           color="success" 
                           size="small"
                         />
-                      </Box>
+            </Box>
                     </CardContent>
                   </Card>
                 </Grid>
@@ -473,13 +473,13 @@ const Settings: React.FC = () => {
                 </Typography>
               </Grid>
 
-              {/* Application Information */}
+          {/* Application Information */}
               <Grid item xs={12} md={6}>
                 <Card>
                   <CardContent>
-                    <Typography variant="h6" gutterBottom>
-                      Application Information
-                    </Typography>
+            <Typography variant="h6" gutterBottom>
+              Application Information
+            </Typography>
                     <Stack spacing={2}>
                       <Box display="flex" justifyContent="space-between">
                         <Typography variant="body2" color="text.secondary">Name:</Typography>
@@ -510,13 +510,13 @@ const Settings: React.FC = () => {
                       API Configuration
                     </Typography>
                     <Stack spacing={2}>
-                      <Box>
+              <Box>
                         <Typography variant="body2" color="text.secondary">Base URL:</Typography>
                         <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
                           {process.env.REACT_APP_API_URL || 'http://localhost:3001'}
-                        </Typography>
-                      </Box>
-                      <Box>
+                </Typography>
+              </Box>
+              <Box>
                         <Typography variant="body2" color="text.secondary">Available Endpoints:</Typography>
                         <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
                           /api/auth, /api/properties, /api/inspections,<br/>
@@ -535,7 +535,7 @@ const Settings: React.FC = () => {
                   <CardContent>
                     <Typography variant="h6" gutterBottom>
                       Database Configuration
-                    </Typography>
+                </Typography>
                     <Grid container spacing={3}>
                       <Grid item xs={12} md={4}>
                         <Box>
@@ -547,10 +547,10 @@ const Settings: React.FC = () => {
                         <Box>
                           <Typography variant="body2" color="text.secondary">ORM:</Typography>
                           <Typography variant="body2">Prisma</Typography>
-                        </Box>
+              </Box>
                       </Grid>
                       <Grid item xs={12} md={4}>
-                        <Box>
+              <Box>
                           <Typography variant="body2" color="text.secondary">Connection:</Typography>
                           <Chip label="Connected" color="success" size="small" />
                         </Box>
@@ -619,7 +619,7 @@ const Settings: React.FC = () => {
                           color={user?.role === 'ADMIN' ? 'error' : user?.role === 'MANAGER' ? 'warning' : 'primary'}
                           size="small"
                         />
-                      </Box>
+              </Box>
                       <Box display="flex" justifyContent="space-between">
                         <Typography variant="body2" color="text.secondary">Status:</Typography>
                         <Chip 
@@ -627,7 +627,7 @@ const Settings: React.FC = () => {
                           color="success"
                           size="small"
                         />
-                      </Box>
+            </Box>
                     </Stack>
                   </CardContent>
                 </Card>
@@ -667,7 +667,7 @@ const Settings: React.FC = () => {
                           color={['ADMIN', 'MANAGER'].includes(user?.role || '') ? 'success' : 'default'} 
                           size="small" 
                         />
-                      </Box>
+        </Box>
                     </Stack>
                   </CardContent>
                 </Card>

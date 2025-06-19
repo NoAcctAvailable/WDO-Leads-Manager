@@ -60,11 +60,11 @@ router.post('/', authorize('ADMIN'), [
 
     // Create user (admin can set any role)
     const userData: any = {
-      email,
-      password: hashedPassword,
-      firstName,
-      lastName,
-      role,
+        email,
+        password: hashedPassword,
+        firstName,
+        lastName,
+        role,
     };
 
     if (employeeId) {

@@ -24,8 +24,8 @@ dotenv.config();
 const app = express();
 const prisma = new PrismaClient();
 
-// Trust proxy for Cloudflare and rate limiting behind reverse proxy
-app.set('trust proxy', process.env.TRUST_PROXY === 'true' ? true : 1);
+// Trust proxy for rate limiting behind reverse proxy
+app.set('trust proxy', 1);
 
 // Security middleware
 app.use(helmet({
@@ -39,16 +39,12 @@ app.use(helmet({
   },
 }));
 
-// CORS configuration - support for Cloudflare
-const corsOrigins = process.env.NODE_ENV === 'production' 
-  ? (process.env.CORS_ORIGIN ? [process.env.CORS_ORIGIN] : ['https://yourdomain.com'])
-  : ['http://localhost:3000', 'http://localhost:5173'];
-
+// CORS configuration
 app.use(cors({
-  origin: corsOrigins,
+  origin: process.env.NODE_ENV === 'production' 
+    ? ['https://yourdomain.com'] // Replace with your actual domain
+    : ['http://localhost:3000'],
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
 }));
 
 // Global rate limiting (more restrictive)
