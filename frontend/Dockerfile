@@ -3,17 +3,19 @@ FROM node:18-alpine AS builder
 
 # Set Node.js optimization flags for low-CPU environments
 ENV NODE_OPTIONS="--max-old-space-size=2048 --max-semi-space-size=128"
-ENV NODE_ENV=production
 
 WORKDIR /app
 
 # Copy package files first for better caching
 COPY package*.json ./
 
-# Install dependencies
+# Install all dependencies (including dev dependencies needed for build)
 # Clear cache to save space and avoid memory issues
-RUN npm install && \
+RUN npm install --include=dev && \
     npm cache clean --force
+
+# Set NODE_ENV after dependencies are installed
+ENV NODE_ENV=production
 
 # Copy source code
 COPY . .
